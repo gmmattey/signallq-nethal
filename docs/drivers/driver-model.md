@@ -44,3 +44,11 @@ SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
 ```
+
+## Catálogo de compatibilidade (Driver Registry)
+
+O formato real do manifesto offline versionado que alimenta o Driver Registry — por profile
+vendor/model, evidências de fingerprint, confidence score e estágio — está documentado em
+`docs/drivers/compatibility-catalog.md`. Os dois primeiros profiles (Nokia G-1425G-A e TP-Link
+Archer C6) ficam em `core/src/main/resources/catalog/catalog-2026.07.06.json`, ambos nascendo em
+estágio `DRAFT` por serem só pesquisa documental, sem probe real ainda.

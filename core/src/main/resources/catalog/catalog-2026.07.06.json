@@ -1,0 +1,215 @@
+{
+  "$schema": "https://nethal.dev/schema/compatibility-catalog-v1.json",
+  "manifestVersion": "2026.07.06",
+  "generatedAt": "2026-07-06T00:00:00Z",
+  "generatedBy": "diego-drivers-protocolos",
+  "previousManifest": null,
+  "profiles": [
+    {
+      "profileId": "nokia_g1425ga_v1",
+      "vendor": "Nokia",
+      "model": "G-1425G-A",
+      "deviceType": "ONT",
+      "family": "Nokia GPON RGW (Shanghai Bell / ex-Alcatel-Lucent)",
+      "firmwareKnown": [],
+      "stage": "DRAFT",
+      "stageReason": "Nenhum teste real (modelo + firmware) executado ainda contra a unidade física de homologação. Toda evidência abaixo é documental/de terceiros, não coletada por probe direto do NetHAL.",
+      "physicalTestAccess": true,
+      "physicalTestAccessNote": "Unidade citada no project charter como um dos dois equipamentos com acesso físico para teste. Homologação real (probe HTTP, TR-069 fingerprint passivo, etc.) ainda não executada — é o próximo passo antes de sair de DRAFT.",
+      "managementDefaults": {
+        "candidateIps": ["192.168.1.254", "192.168.254.254"],
+        "ipConfidence": 0.35,
+        "ipConfidenceNote": "Fontes divergem entre 192.168.1.254 (mais citado, inclusive em guias de operadora como Claro para a linha G-24xx-A) e 192.168.254.254 (citado para G-1425G-B). Não há confirmação publicada especificamente para o G-1425G-A revisado nesta pesquisa. Testar ambos no probe real.",
+        "managementPort": 80,
+        "managementPortNote": "HTTP inferido por convenção de linha (não confirmado por captura direta nesta pesquisa)."
+      },
+      "credentialConvention": {
+        "defaultUser": "AdminGPON",
+        "defaultPasswordPattern": "ALC#FGU (ou variante por operador/ID de vendor)",
+        "confidence": 0.4,
+        "confidenceNote": "Padrão AdminGPON/ALC#FGU é amplamente reportado para a família Nokia/Alcatel-Lucent GPON (G-140W-C, G-2425G-A), mas nenhuma fonte consultada confirma isso especificamente para o G-1425G-A. Em unidades de operadora brasileira (Claro/Vivo), a própria documentação da operadora recomenda usar a credencial impressa na etiqueta do equipamento, não o padrão de fábrica — reforça que isso é só heurística de fallback, nunca tentativa automática.",
+        "policyNote": "NUNCA usar como tentativa automática de login. Uso permitido apenas como fingerprint passivo (ex.: presença do texto 'AdminGPON' em página pública) ou como sugestão manual ao usuário testar a própria etiqueta primeiro."
+      },
+      "fingerprintEvidence": [
+        {
+          "type": "html_title",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Nenhuma fonte consultada reproduziu o HTML/title real da tela de login do G-1425G-A. WebFetch direto ao manual (manuals.plus) e ao help center Nokia retornou HTTP 403.",
+          "note": "Não inventar valor. Campo fica null até captura real via probe autorizado na unidade física."
+        },
+        {
+          "type": "http_headers",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Nenhuma evidência de Server/WWW-Authenticate header foi encontrada publicamente para este modelo específico nesta pesquisa.",
+          "note": "Repositórios de reverse engineering (ex.: hack-gpon.org) documentam outro modelo da família (G-010G-Q, chipset Realtek RTL9601B, ODM CIG) com headers e portas próprias — não deve ser extrapolado para o G-1425G-A, que é um RGW dual-band residencial completo, não um bridge ONT simples."
+        },
+        {
+          "type": "management_protocol",
+          "value": "TR-069 (CWMP) com suporte a parâmetros TR-181, auto-configuração de ACS via DHCP Option 43",
+          "confidence": 0.65,
+          "confidenceLevel": "MEDIUM",
+          "source": "made4it.com.br (artigo técnico em português sobre reconfiguração de ONU/ONT Nokia G-1425-GA após reset, cita DHCP Option 43 para entrega de ACS) e busca cruzada confirmando suporte TR-069/TR-181 na linha G-1425G. https://made4it.com.br/en/reconfiguring-onu-ont-nokia-g-1425-ga-after-reset-a-auto-configuration-using-dhcp-option-43-for-acs-delivery/",
+          "note": "TR-069 aqui é FINGERPRINT PASSIVO apenas — nunca canal de ação local, conforme regra do squad. Confirma que a unidade é gerenciada por ACS de operadora; qualquer alteração local pode ser revertida por reprovisionamento."
+        },
+        {
+          "type": "management_protocol",
+          "value": "TR-369/USP mencionado na linha G-1425G-E (variante irmã, não a exata G-1425G-A)",
+          "confidence": 0.3,
+          "confidenceLevel": "LOW",
+          "source": "ManualsLib, Nokia G-1425G-E Product Manual, página 131 — menciona campos 'Enable TR369/USP', 'Controller endpoint ID', 'MTP Protocol'. https://www.manualslib.com/manual/3801395/Nokia-G-1425g-E.html?page=131",
+          "note": "Evidência é de variante de firmware/hardware diferente (G-1425G-E, não G-1425G-A). Tratar como indício de família, não confirmação do modelo exato. TR-369 também nasce só como fingerprint passivo, nunca ação local, por regra do produto."
+        },
+        {
+          "type": "management_protocol",
+          "value": "UPnP IGD 2.0",
+          "confidence": 0.5,
+          "confidenceLevel": "MEDIUM",
+          "source": "Busca cruzada sobre suporte UPnP na linha G-1425G e artigo do Nokia WiFi Help Center 'Enable/Disable UPnP' (aplica-se à linha residencial Nokia WiFi/ONT em geral, não confirmado texto completo por bloqueio HTTP 403 no fetch direto).",
+          "note": "Alta plausibilidade dado padrão da linha, mas sem captura de descritor SSDP/rootDesc.xml real desta unidade."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": ["Device Information", "LAN Status", "WAN Status", "WAN IPv6 Status", "Home Networking Information", "Wireless 2.4GHz/5GHz settings", "TR-069 settings", "DNS Configuration"],
+          "confidence": 0.45,
+          "confidenceLevel": "MEDIUM",
+          "source": "Estrutura de menu inferida a partir do manual da variante G-1425G-E (mesma família de produto, ManualsLib) e descrição geral do G-1425G-B/G-1425G-A no Nokia WiFi Help Center e manuals.plus (título do documento confirmado: 'Nokia G-1425G-A Product Guide: GPON ONT for Home Networks', 3FE-77771-AAAA-TCZZA Issue 5, Nov/2021).",
+          "note": "Nomenclatura exata de menu pode variar por firmware/operador. Não confirmado por captura direta da WebUI do G-1425G-A."
+        },
+        {
+          "type": "product_documentation",
+          "value": "Nokia ONT G-1425G-A Product Guide, doc 3FE-77771-AAAA-TCZZA, Issue 5, November 2021",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "source": "https://manuals.plus/m/4952670e1bb9d17a5496605aa0990797d7731caeb6107c2f31762a2550ef4d12 (título e identificador do documento confirmados via resultado de busca; conteúdo integral bloqueado por HTTP 403 no fetch direto).",
+          "note": "Alta confiança apenas sobre a EXISTÊNCIA e identificação do documento oficial — não sobre o conteúdo técnico detalhado, que não pôde ser lido diretamente."
+        }
+      ],
+      "expectedProtocols": [
+        {"protocol": "HTTP_LOCAL_WEBUI", "detectionState": "UNKNOWN", "note": "Alta probabilidade de existir (todo ONT residencial Nokia tem WebUI local), mas porta/comportamento não confirmados diretamente."},
+        {"protocol": "TR-069_CWMP", "detectionState": "UNKNOWN", "note": "Fingerprint passivo apenas, nunca ação local. Ver regra do squad e §8.3 da spec."},
+        {"protocol": "UPNP_IGD", "detectionState": "UNKNOWN", "note": "Plausível por convenção de linha residencial Nokia."},
+        {"protocol": "TR-369_USP", "detectionState": "UNKNOWN", "note": "Evidência é de variante G-1425G-E, não confirmada para G-1425G-A. Fingerprint passivo apenas."}
+      ],
+      "capabilities": [
+        {"id": "READ_DEVICE_INFO", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_WAN_STATUS", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_WIFI_STATUS", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_FIRMWARE", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."}
+      ],
+      "knownFirmwareBugs": [],
+      "operatorProvisioningRisk": {
+        "risk": "HIGH",
+        "note": "ONT de operadora (perfil CPE-ISP). Qualquer alteração local (Wi-Fi, DNS) pode ser revertida por reprovisionamento via ACS/TR-069, conforme §10 e §11 (Tela 6) da spec de produto. Relatório ao usuário deve sinalizar isso explicitamente quando este driver avançar de estágio."
+      },
+      "confidenceScoreOverall": 0.25,
+      "confidenceScoreOverallNote": "Score deliberadamente baixo — nenhuma evidência foi coletada por probe direto na unidade física, apenas documentação pública de terceiros e do fabricante, parte dela sobre variantes de firmware diferentes (G-1425G-B/E) e não o G-1425G-A exato. Cálculo segue heurística de /protocolos-locais: nenhum ponto de 'match de headers/banners' real (0/0.25), nenhum ponto de 'match de descritor/endpoint canônico' real (0/0.20), nenhuma autenticação testada (0/0.20), nenhum capability sanity check (0/0.15); pontuação vem só de 'firmware/modelo presente no catálogo offline' (documentação oficial confirmada, 0.10) e 'evidência comunitária' parcial (0.15 de 0.10 arredondado pela convergência de múltiplas fontes sobre a família)."
+    },
+    {
+      "profileId": "tplink_archer_c6_v1",
+      "vendor": "TP-Link",
+      "model": "Archer C6",
+      "deviceType": "ROUTER",
+      "family": "TP-Link Archer (AC1200 dual-band)",
+      "firmwareKnown": ["v2.x (hardware v2)", "v4.0 (hardware v4)"],
+      "stage": "DRAFT",
+      "stageReason": "Nenhum teste real (modelo + firmware) executado ainda contra a unidade física de homologação. Evidência abaixo é documental/de terceiros e do emulador oficial do fabricante, não coletada por probe direto do NetHAL.",
+      "physicalTestAccess": true,
+      "physicalTestAccessNote": "Unidade citada no project charter como um dos dois equipamentos com acesso físico para teste. Homologação real ainda não executada.",
+      "managementDefaults": {
+        "candidateIps": ["192.168.0.1", "192.168.1.1", "tplinkwifi.net"],
+        "ipConfidence": 0.85,
+        "ipConfidenceNote": "192.168.0.1 é o IP padrão confirmado por múltiplas fontes (documentação oficial TP-Link, SetupRouter, router-network) para hardware v2 e v4 do Archer C6. tplinkwifi.net é o hostname de conveniência oficial documentado pela TP-Link.",
+        "managementPort": 80,
+        "managementPortNote": "HTTP por padrão; HTTPS local disponível mas opcional/desabilitado por padrão, conforme guia oficial TP-Link ('Tutorial TP-LINK Archer C6 AC1200 - Enable HTTPS') e uso de certificado self-signed quando habilitado."
+      },
+      "credentialConvention": {
+        "defaultUser": null,
+        "defaultPasswordPattern": "Definida pelo usuário no primeiro setup (sem usuário/senha de fábrica fixos em hardware v4; hardware v2 mais antigo podia usar admin/admin)",
+        "confidence": 0.6,
+        "confidenceNote": "Confirmado por documentação oficial TP-Link e SetupRouter que hardware v4 exige criação de senha no primeiro acesso, sem usuário. Hardware v2 mais antigo segue convenção legada admin/admin, mas não confirmado com fonte primária nesta pesquisa.",
+        "policyNote": "Sem tentativa automática de login em nenhum caso — mesma regra do Nokia."
+      },
+      "fingerprintEvidence": [
+        {
+          "type": "html_title",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "WebFetch ao emulador oficial (https://emulator.tp-link.com/c6-us-v2/index.html) não retornou a tag <title> ou <head> completa — apenas fragmento de corpo/navegação processado pelo modelo de resumo. Página de login direta (frame/login.html) retornou HTTP 404 no emulador.",
+          "note": "Não inventar valor. O emulador existe e é uma fonte legítima e verificável (https://emulator.tp-link.com/c6-us-v2/index.html), mas a ferramenta de fetch usada nesta pesquisa não expôs o HTML bruto da tag title. Próximo passo: captura manual de HTML bruto (curl/DevTools) contra o emulador ou a unidade física antes de promover este campo a confiança maior."
+        },
+        {
+          "type": "http_headers",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Nenhuma fonte pública consultada nesta pesquisa reproduziu literalmente o header Server: ou WWW-Authenticate: do httpd do Archer C6.",
+          "note": "Não inventar string de header. Captura real fica pendente de probe HTTP direto (permitido: GET simples na tela de login, sem autenticação, é fingerprint passivo válido) contra a unidade física de homologação."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "Login via formulário HTTP com senha ofuscada/criptografada no cliente (AES-CBC em firmwares antigos, AES-GCM em firmwares recentes; padrão 'web encrypted password' descrito como JS gerando hash/cifra antes do POST)",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM_HIGH",
+          "source": "README do projeto comunitário TP-Link-Archer-C6U (AlexandrErohin), que declara suporte a 85+ roteadores TP-Link/Mercusys incluindo a série Archer C, com AES-CBC para firmwares antigos e AES-GCM para recentes. https://github.com/AlexandrErohin/TP-Link-Archer-C6U — já citado como reuso conhecido em docs/architecture/driver-adoption-strategy.md.",
+          "note": "Evidência de comportamento de biblioteca de terceiros amplamente usada e citada na pesquisa anterior de Diego (driver-adoption-strategy.md), não captura direta do tráfego desta unidade física. Precisa ser confirmado por teste real antes de qualquer implementação de Authentication Manager para este modelo."
+        },
+        {
+          "type": "session_behavior",
+          "value": "WebUI aceita apenas uma sessão autenticada simultânea — deixar o painel aberto no navegador pode causar falha de login por outro cliente",
+          "confidence": 0.55,
+          "confidenceLevel": "MEDIUM",
+          "source": "Padrão documentado de forma consistente na pesquisa anterior (docs/architecture/driver-adoption-strategy.md e docs/drivers/local-drivers-brazil.md) para a família TP-Link Archer em geral, já refletido em spec.md §10/§11 (Tela 5). Não é evidência nova desta rodada, mas se aplica diretamente ao C6 como membro da família Archer.",
+          "note": "Já está refletido como regra de produto (aviso na Tela 5 de autenticação), independente de confirmação específica no C6."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": ["Quick Setup", "Basic (status/wireless/network map)", "Advanced (wireless, network, security, USB, IPv6, etc.)", "AP Quick Setup (modo access point)", "Settings"],
+          "confidence": 0.6,
+          "confidenceLevel": "MEDIUM",
+          "source": "Emulador oficial do fabricante, https://emulator.tp-link.com/c6-us-v2/index.html — navegação confirmada para pages/frame/quick-setup.html, pages/frame/basic.html, pages/frame/advanced.html, pages/frame/ap-quick-setup.html, pages/frame/settings.html.",
+          "note": "Estrutura de alto nível confirmada pelo emulador oficial (fonte primária do fabricante), mas os endpoints internos de dados (JSON/cgi-bin exatos por seção) não foram capturados nesta pesquisa."
+        },
+        {
+          "type": "vendor_app_reference",
+          "value": "Aplicativo companion 'TP-Link Tether' referenciado no WebUI (links iTunes/Google Play)",
+          "confidence": 0.8,
+          "confidenceLevel": "HIGH",
+          "source": "Confirmado diretamente no HTML navegável do emulador oficial https://emulator.tp-link.com/c6-us-v2/index.html.",
+          "note": "Bom sinal de fingerprint complementar (presença de referências 'TP-Link Tether' na WebUI), mas não substitui título/headers HTTP como evidência primária de fingerprint passivo."
+        }
+      ],
+      "expectedProtocols": [
+        {"protocol": "HTTP_LOCAL_WEBUI", "detectionState": "SUPPORTED", "note": "Confirmado por múltiplas fontes e emulador oficial. Porta 80 por padrão."},
+        {"protocol": "HTTPS_LOCAL_WEBUI", "detectionState": "REQUIRES_AUTH", "note": "Disponível mas opcional, requer habilitação manual e usa certificado self-signed (aviso de 'Privacy Error' esperado no browser)."},
+        {"protocol": "TR-069_CWMP", "detectionState": "UNKNOWN", "note": "TP-Link documenta suporte a TR-069/gestão remota 'Agile' em parte do catálogo atual, não confirmado especificamente para o C6 nesta pesquisa. Fingerprint passivo apenas, se existir."},
+        {"protocol": "UPNP_IGD", "detectionState": "UNKNOWN", "note": "Comum na linha Archer em geral por convenção de mercado, não confirmado diretamente para o C6 nesta pesquisa."}
+      ],
+      "capabilities": [
+        {"id": "READ_DEVICE_INFO", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_WAN_STATUS", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_WIFI_STATUS", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_CONNECTED_CLIENTS", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "READ_FIRMWARE", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT."},
+        {"id": "REBOOT_DEVICE", "state": "UNKNOWN", "reason": "Sem teste real ainda; driver em DRAFT. Biblioteca comunitária (TP-Link-Archer-C6U) demonstra suporte a esta ação em modelos da família, mas não é evidência de teste próprio."}
+      ],
+      "knownFirmwareBugs": [
+        {
+          "description": "Atualizações de firmware podem quebrar compatibilidade de integrações não oficiais (mudança de esquema de criptografia de senha, endpoints internos) sem aviso prévio ao usuário final.",
+          "confidence": 0.6,
+          "source": "Observação recorrente do maintainer do projeto comunitário TP-Link-Archer-C6U e já registrada em docs/architecture/driver-adoption-strategy.md."
+        }
+      ],
+      "operatorProvisioningRisk": {
+        "risk": "LOW",
+        "note": "Roteador de varejo, não gerenciado por ACS de operadora na configuração padrão (salvo se o revendedor/operadora tiver habilitado TR-069 remoto, o que não é o padrão de fábrica documentado)."
+      },
+      "confidenceScoreOverall": 0.35,
+      "confidenceScoreOverallNote": "Score baixo/médio — melhor que o Nokia porque há confirmação de fonte primária do fabricante (emulador oficial) para IP, estrutura de menu e existência de WebUI, mas ainda sem probe HTTP real contra a unidade física, sem título/headers capturados e sem autenticação testada. Cálculo: 0 de 'match de headers/banners' real (title/Server ainda não capturados = 0/0.25), 0.10 de 'match de descritor/endpoint canônico' (estrutura de páginas confirmada via emulador oficial, mas parcial), 0 de 'autenticação testada' (0/0.20), 0 de 'capability sanity check' (0/0.15), 0.10 de 'firmware/modelo no catálogo offline' (documentação oficial + emulador), 0.15 de 'evidência comunitária' (projeto TP-Link-Archer-C6U bem estabelecido e citado)."
+    }
+  ]
+}
