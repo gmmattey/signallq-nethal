@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun DiscoveryFailedScreen(
     reason: FailureReason,
+    manualTargetError: String?,
     onRetry: () -> Unit,
     onAddManualTarget: (String) -> Unit,
 ) {
@@ -75,8 +76,17 @@ fun DiscoveryFailedScreen(
                 value = manualIp,
                 onValueChange = { manualIp = it },
                 label = { Text("IP do equipamento, ex.: 192.168.1.1") },
+                isError = manualTargetError != null,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            if (manualTargetError != null) {
+                Text(
+                    text = manualTargetError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
 
             Button(
                 onClick = { onAddManualTarget(manualIp) },

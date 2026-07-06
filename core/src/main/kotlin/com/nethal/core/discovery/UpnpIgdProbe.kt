@@ -155,10 +155,12 @@ private val SERVICE_REGEX = Regex("<service>.*?</service>", RegexOption.DOT_MATC
 private val CONTROL_URL_REGEX = Regex("<controlURL>(.*?)</controlURL>")
 
 /**
- * RFC 1918 — usada para decidir `possibleDoubleNat` (SIG-317). IP externo dentro destas
- * faixas indica que o gateway não está falando diretamente com a internet pública.
+ * RFC 1918 — usada para decidir `possibleDoubleNat` (SIG-317) e como guarda de SSRF em
+ * qualquer probe de rede do NetHAL (`UpnpIgdProbe`, `HttpFingerprintProbe`) e na validação de
+ * IP manual informado pelo usuário na Tela 2b/2c (`app`). Pública (não `internal`) porque
+ * precisa ser reaproveitada fora do módulo `core` — é utilitário puro, sem risco em expor.
  */
-internal object PrivateIpRanges {
+object PrivateIpRanges {
 
     fun isPrivate(ip: String): Boolean {
         val octets = ip.trim().split(".").mapNotNull { it.toIntOrNull() }

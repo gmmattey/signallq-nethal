@@ -18,6 +18,8 @@ class MainActivity : ComponentActivity() {
             consentRepository = app.consentRepository,
             discoveryEngine = app.discoveryEngine,
             networkEnvironmentReader = app.networkEnvironmentReader,
+            fingerprintEngine = app.fingerprintEngine,
+            manualIdentificationRepository = app.manualIdentificationRepository,
         )
 
         setContent {

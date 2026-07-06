@@ -14,6 +14,8 @@ import com.nethal.core.model.NetworkTarget
 import com.nethal.lab.ui.common.NetHalViewModelFactory
 import com.nethal.lab.ui.discovery.DiscoveryScreen
 import com.nethal.lab.ui.discovery.DiscoveryViewModel
+import com.nethal.lab.ui.equipment.EquipmentDetectedScreen
+import com.nethal.lab.ui.equipment.EquipmentDetectedViewModel
 import com.nethal.lab.ui.onboarding.BetaOptInScreen
 import com.nethal.lab.ui.onboarding.BetaOptInViewModel
 import com.nethal.lab.ui.onboarding.WelcomeScreen
@@ -37,8 +39,9 @@ fun NetHalNavHost(
     navController: NavHostController = rememberNavController(),
 ) {
     // Guardado no escopo do NavHost (não dentro de um `composable {}`) para sobreviver à
-    // navegação de "discovery" para "target_selected" — não há Fingerprint Engine ainda
-    // (Feat 3) para justificar um repositório/estado compartilhado mais formal.
+    // navegação de "discovery" para "target_selected". O `EquipmentDetectedViewModel` precisa
+    // do `NetworkTarget` no construtor (não dá para injetar via `SavedStateHandle` sem
+    // Parcelable/serializer dedicado nesta entrega) — factory por instância cobre isso.
     var selectedTarget by remember { mutableStateOf<NetworkTarget?>(null) }
 
     NavHost(navController = navController, startDestination = Routes.WELCOME) {
@@ -93,9 +96,12 @@ fun NetHalNavHost(
                     popUpTo(Routes.DISCOVERY) { inclusive = true }
                 }
             } else {
-                TargetSelectedPlaceholderScreen(
-                    target = target,
-                    onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                val viewModel: EquipmentDetectedViewModel = viewModel(
+                    factory = viewModelFactory.forEquipmentDetected(target),
+                )
+                EquipmentDetectedScreen(
+                    viewModel = viewModel,
+                    onContinue = { navController.navigate(Routes.SETTINGS) },
                 )
             }
         }

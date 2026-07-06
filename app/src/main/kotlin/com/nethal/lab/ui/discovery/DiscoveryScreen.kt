@@ -36,6 +36,7 @@ fun DiscoveryScreen(
     onCandidateChosen: (NetworkTarget) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val manualTargetError by viewModel.manualTargetError.collectAsState()
     val context = LocalContext.current
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -68,11 +69,13 @@ fun DiscoveryScreen(
         is DiscoveryUiState.SingleCandidateReady -> ScanningContent()
         is DiscoveryUiState.Failed -> DiscoveryFailedScreen(
             reason = state.reason,
+            manualTargetError = manualTargetError,
             onRetry = { viewModel.retry() },
             onAddManualTarget = { ip -> viewModel.addManualTarget(ip) },
         )
         is DiscoveryUiState.MultipleCandidates -> MultipleCandidatesScreen(
             state = state,
+            manualTargetError = manualTargetError,
             onCandidateChosen = onCandidateChosen,
             onAddManualTarget = { ip -> viewModel.addManualTarget(ip) },
         )

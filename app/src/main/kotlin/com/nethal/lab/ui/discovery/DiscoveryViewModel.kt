@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nethal.core.discovery.DiscoveryEngine
 import com.nethal.core.discovery.NetworkEnvironmentReader
+import com.nethal.core.discovery.PrivateIpRanges
 import com.nethal.core.model.NetworkTarget
 import com.nethal.core.model.TargetRole
 import com.nethal.core.model.TargetSource
@@ -26,6 +27,9 @@ class DiscoveryViewModel(
     private val _uiState = MutableStateFlow<DiscoveryUiState>(DiscoveryUiState.AwaitingLocationPermission)
     val uiState: StateFlow<DiscoveryUiState> = _uiState.asStateFlow()
 
+    private val _manualTargetError = MutableStateFlow<String?>(null)
+    val manualTargetError: StateFlow<String?> = _manualTargetError.asStateFlow()
+
     private val manualDevices = mutableListOf<NetworkTarget>()
 
     fun onLocationPermissionResult(granted: Boolean) {
@@ -44,6 +48,16 @@ class DiscoveryViewModel(
         val trimmed = ip.trim()
         if (trimmed.isEmpty()) return
 
+        // Guarda de SSRF (revisão de segurança da Feat 3): o IP manual é digitado pelo próprio
+        // usuário, mas pode apontar sem querer para um host público — o NetHAL só deve sondar
+        // equipamentos da rede local, nunca a internet. Mesma regra do UpnpIgdProbe/isProbeAllowed.
+        if (!PrivateIpRanges.isPrivate(trimmed)) {
+            _manualTargetError.value =
+                "Esse IP não parece ser da sua rede local. O NetHAL só testa equipamentos na sua LAN."
+            return
+        }
+
+        _manualTargetError.value = null
         manualDevices += NetworkTarget(
             ip = trimmed,
             role = TargetRole.MANUAL,

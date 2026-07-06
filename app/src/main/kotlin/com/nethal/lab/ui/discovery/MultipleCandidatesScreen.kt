@@ -32,6 +32,7 @@ import com.nethal.core.model.TargetSource
 @Composable
 fun MultipleCandidatesScreen(
     state: DiscoveryUiState.MultipleCandidates,
+    manualTargetError: String?,
     onCandidateChosen: (NetworkTarget) -> Unit,
     onAddManualTarget: (String) -> Unit,
 ) {
@@ -80,8 +81,17 @@ fun MultipleCandidatesScreen(
                 value = manualIp,
                 onValueChange = { manualIp = it },
                 label = { Text("IP do equipamento, ex.: 192.168.1.1") },
+                isError = manualTargetError != null,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            if (manualTargetError != null) {
+                Text(
+                    text = manualTargetError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
 
             Button(
                 onClick = { onAddManualTarget(manualIp) },
