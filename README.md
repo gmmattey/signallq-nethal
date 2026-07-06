@@ -36,9 +36,20 @@ Start here:
 - [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)
 
+## Project structure
+
+Gradle multi-module setup:
+
+- `core/` — **NetHAL Core**, a pure Kotlin (JVM) SDK module with no Android UI dependency, so it can be reused by SignallQ later. Package: `com.nethal.core`.
+- `app/` — **NetHAL Lab**, the Android/Compose app that consumes `core`. `applicationId`/namespace: `com.nethal.lab`.
+
+Both names are implementation details, not brand decisions — flag to Rafael/Luiz if a different package convention is preferred before this ships further.
+
+Toolchain: Kotlin 2.0.21, AGP 8.7.3, Compose BOM 2024.12.01, `compileSdk`/`targetSdk` 35, `minSdk` 26 (required for reliable Wi-Fi scan behavior under `ACCESS_FINE_LOCATION`, per `/regras-android-nethal`).
+
 ## Status
 
-Early foundation. No production driver is stable yet.
+Early foundation. Onboarding and consent flow (SIG-307) implemented. No production driver is stable yet.
 
 ## License
 
