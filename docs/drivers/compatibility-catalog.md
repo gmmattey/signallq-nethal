@@ -207,6 +207,17 @@ Qualquer exibição ao usuário deve continuar usando `vendor: "Nokia"` (nome co
 profile); `manufacturer=ALCL` só é relevante como evidência de fingerprint interna ou nota de
 debugging, nunca como valor a expor na Tela de identificação do equipamento.
 
+## Fontes consultadas — manifesto `2026.07.09` (2026-07-06, SIG-333, segunda execução)
+
+- **Nokia G-1425G-B**: segunda execução real de `nokiaManualCheck` contra a mesma unidade física
+  do Luiz, agora com a instrumentação de captura de fingerprint da tela de login (introduzida no
+  manifesto `2026.07.08`). Trouxe o dado que faltava: `html_title` = "GPON Home Gateway", capturado
+  por probe passivo real, sem autenticação, na raiz do equipamento. O header `Server` foi verificado
+  e confirmado como genuinamente ausente na resposta — não uma lacuna de captura. Uptimes de GPON,
+  WAN e DeviceInfo incrementaram corretamente (~16 min) entre as duas execuções, confirmando leitura
+  real (não cache/fixture).
+- **TP-Link Archer C6**: inalterado nesta rodada.
+
 ## Fontes consultadas — manifesto `2026.07.08` (2026-07-06, SIG-333)
 
 - **Nokia G-1425G-B**: primeira execução real de leitura autenticada do próprio NetHAL
@@ -266,6 +277,24 @@ contra a unidade física. Isso é declarado explicitamente no manifesto (`value:
 
 ## Changelog
 
+- **2026-07-09 (promoção para READ_ONLY_ALPHA, decisão do Rafael)** — Segunda execução real de
+  `nokiaManualCheck` (mesma unidade física do Luiz, SIG-333) trouxe o probe passivo real que faltava
+  desde a correção de sequência do dia anterior: título HTML da tela de login capturado —
+  `html_title` = "GPON Home Gateway". O header `Server` foi verificado e confirmado como genuinamente
+  ausente na resposta deste firmware (não é lacuna de captura, é fato do servidor HTTP). Novo
+  manifesto `catalog-2026.07.09.json` (`previousManifest: catalog-2026.07.08.json`): `stage` do
+  profile `nokia_g1425gb_v1` avança de `DISCOVERY_ONLY` para `READ_ONLY_ALPHA`, cumprindo a
+  aprovação condicionada do Rafael ("assim que o dado real da página de login chegar"). Evidência
+  completa: (1) probe passivo real (título capturado sem autenticação), (2) leitura autenticada real
+  dos 4 endpoints já validada na execução anterior e reconfirmada nesta segunda chamada com uptimes
+  coerentemente incrementados, (3) duas execuções reais consistentes contra a mesma unidade física.
+  `confidenceScoreOverall` recalculado de `0.85` para `0.9` — a categoria "match de headers/banners
+  reais" (0,25) passa a contribuir porque `FingerprintEngine.matchesHeaderOrBanner` aceita título OU
+  header como critério de match, e o título bateu. Cálculo somaria 1.00 se todas as seis categorias
+  fossem levadas ao teto simultaneamente pela primeira vez; arredondado para `0.9` por prudência
+  editorial (nenhuma das duas execuções cobriu cenário de erro/timeout real, e a faixa `>0.90` da
+  heurística de score é reservada para decisões de risco mais alto, não aplicável a um profile ainda
+  só-leitura). Nenhuma capability de escrita foi implementada ou proposta.
 - **2026-07-08 (correção de sequência de estágio, decisão do Rafael)** — O `stage` do profile
   `nokia_g1425gb_v1` avançou incorretamente na entrega anterior deste mesmo dia: o critério
   documentado de `DRAFT → DISCOVERY_ONLY` (primeiro probe passivo real, título HTML e headers
