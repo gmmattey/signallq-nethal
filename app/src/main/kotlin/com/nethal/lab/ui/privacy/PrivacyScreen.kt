@@ -33,9 +33,11 @@ fun PrivacyScreen(onBack: () -> Unit) {
             Text(text = "Privacidade", style = MaterialTheme.typography.headlineSmall)
 
             Text(
-                text = "O NetHAL nunca armazena a senha do seu roteador ou do Wi-Fi. " +
-                    "Credenciais existem apenas na sessão local do app e são descartadas " +
-                    "ao fechar o módulo.",
+                text = "O NetHAL nunca armazena senhas — nem a senha do Wi-Fi (usada para " +
+                    "conectar seu celular à rede) nem a senha de administrador do roteador " +
+                    "ou modem (usada para acessar o painel de configuração do equipamento). " +
+                    "São credenciais diferentes, e nenhuma das duas é persistida: existem " +
+                    "apenas na sessão local do app e são descartadas ao fechar o módulo.",
                 style = MaterialTheme.typography.bodyLarge,
             )
 
