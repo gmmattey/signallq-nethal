@@ -180,6 +180,22 @@ implementado do zero para o vocabulário do NetHAL, usando o código do SignallQ
 protocolo (handshake RSA+AES, endpoints, conversões de unidade, aliases de campo incluindo o typo
 conhecido de firmware `SupplyVottage`) — não é uma cópia literal de arquivo.
 
+## Limitação conhecida — TOFU no handshake do driver Nokia
+
+O login do `NokiaOntDriver` busca a chave pública RSA na própria página de login do equipamento
+(`GET /`), sem certificado nem pinagem — é *trust on first use* (TOFU), inerente ao protocolo do
+firmware Nokia, não uma escolha do NetHAL nem algo evitável sem quebrar compatibilidade com o
+equipamento real. Isso foi levantado por Marisa na revisão de segurança do PR #6 (driver Nokia).
+
+Mitigação já implementada: `NokiaOntDriver` recusa construir contra qualquer host que não seja IP
+privado (RFC 1918) — ver `PrivateIpRanges` em `core/src/main/kotlin/com/nethal/core/discovery/`.
+Isso reduz o risco a "host malicioso dentro da própria LAN do usuário", não elimina o TOFU em si.
+
+**Pendência antes de `READ_ONLY_BETA`**: quando a Tela 5 (Autenticação, spec §11) for implementada,
+ela precisa avisar explicitamente o usuário sobre essa limitação antes do primeiro login — algo
+como "este equipamento não permite verificar a autenticidade do host antes de enviar sua senha;
+use apenas na sua própria rede confiável". Não é bloqueante para o driver continuar em `DRAFT`.
+
 ## Consumo pelo Driver Registry (fora de escopo desta entrega)
 
 O parsing/deserialização deste JSON em Kotlin, a lógica de diff incremental entre manifestos e a

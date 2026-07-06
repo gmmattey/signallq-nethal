@@ -109,6 +109,39 @@ class NokiaAuthenticationClientTest {
     }
 
     @Test
+    fun `no exception message ever contains the plaintext password - travado contra regressao`() {
+        val distinctivePassword = "S3nh4-Muito-Distintiva-Para-Achar-Em-Qualquer-Lugar"
+
+        val cases = listOf(
+            errorLoginResponse(errT = 0) to "sessao em uso",
+            errorLoginResponse(errT = 1) to "credencial invalida",
+            errorLoginResponse(errT = 2) to "token expirado",
+            errorLoginResponse(errT = 99) to "err_t desconhecido",
+        )
+
+        cases.forEach { (response, label) ->
+            val transport = FakeNokiaHttpTransport(
+                loginPageBody = loginPageWithGeneratedKey(),
+                loginResponses = mutableListOf(response),
+            )
+            val client = NokiaAuthenticationClient("192.168.1.1", transport)
+
+            val exception = assertThrows(NokiaLoginException::class.java) {
+                client.login("admin", distinctivePassword)
+            }
+
+            assertTrue(
+                "vazou a senha na mensagem de excecao ($label): ${exception.message}",
+                exception.message?.contains(distinctivePassword) != true,
+            )
+            assertTrue(
+                "vazou a senha no toString() da excecao ($label)",
+                !exception.toString().contains(distinctivePassword),
+            )
+        }
+    }
+
+    @Test
     fun `fetchAuthenticated fails fast when called before a successful login`() {
         val transport = FakeNokiaHttpTransport(loginPageBody = "", loginResponses = mutableListOf())
         val client = NokiaAuthenticationClient("192.168.1.1", transport)

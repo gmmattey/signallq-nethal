@@ -156,9 +156,18 @@ private val CONTROL_URL_REGEX = Regex("<controlURL>(.*?)</controlURL>")
 
 /**
  * RFC 1918 — usada para decidir `possibleDoubleNat` (SIG-317) e como guarda de SSRF em
- * qualquer probe de rede do NetHAL (`UpnpIgdProbe`, `HttpFingerprintProbe`) e na validação de
- * IP manual informado pelo usuário na Tela 2b/2c (`app`). Pública (não `internal`) porque
- * precisa ser reaproveitada fora do módulo `core` — é utilitário puro, sem risco em expor.
+ * qualquer probe de rede do NetHAL (`UpnpIgdProbe`, `HttpFingerprintProbe`, `NokiaOntDriver`) e
+ * na validação de IP manual informado pelo usuário na Tela 2b/2c (`app`). Pública (não
+ * `internal`) porque precisa ser reaproveitada fora do módulo `core` — é utilitário puro, sem
+ * risco em expor.
+ *
+ * Cobertura deliberadamente restrita a RFC 1918 (`10.0.0.0/8`, `172.16.0.0/12`,
+ * `192.168.0.0/16`) — não inclui loopback (`127.0.0.0/8`) nem link-local (`169.254.0.0/16`),
+ * apontado por Marisa na revisão de segurança do driver Nokia (PR #6). Isso é **mais
+ * restritivo, não uma brecha**: hoje só torna o guard mais rígido, já que nenhum equipamento de
+ * rede legítimo do NetHAL vive em loopback/link-local. Não "corrija" isso adicionando essas
+ * faixas sem entender a implicação — o objetivo aqui é recusar o máximo possível por padrão
+ * (falha segura), não maximizar cobertura de "endereço tecnicamente local".
  */
 object PrivateIpRanges {
 
