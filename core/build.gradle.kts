@@ -35,3 +35,14 @@ tasks.register<JavaExec>("tplinkManualCheck") {
     mainClass.set("com.nethal.core.driver.tplink.ManualCheckRunnerKt")
     standardInput = System.`in`
 }
+
+// Diagnostico manual do driver TP-Link Archer C20 contra hardware real - nunca roda em CI/test,
+// so quando o usuario dispara explicitamente. Mecanismo de login e especulativo para este modelo
+// (ver TplinkC20AuthenticationClient) - falha aqui e esperada e informativa.
+tasks.register<JavaExec>("tplinkC20ManualCheck") {
+    group = "verification"
+    description = "Diagnostico manual contra um TP-Link Archer C20 real na LAN. Uso: gradlew :core:tplinkC20ManualCheck --args=\"<ip> <usuario>\""
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.nethal.core.driver.tplink.ManualCheckRunnerC20Kt")
+    standardInput = System.`in`
+}
