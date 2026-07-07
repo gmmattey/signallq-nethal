@@ -11,9 +11,14 @@ package com.nethal.core.driver.tplink
  * campo1
  * campo2
  * ```
- * `indice` é a posição do bloco na sequência de blocos do request (0-based). Sempre inclui um
- * último bloco especial `[/cgi/info#...]indice,0` (0 campos) — é o que devolve a confirmação de
- * sessão `[cgi]<indice>` no response, mesmo padrão observado em toda captura real.
+ * `indice` é a posição do bloco na sequência de blocos do request (0-based). O bloco especial
+ * `/cgi/info` (0 campos) devolve a confirmação de sessão `[cgi]<indice>` no response — mas ele NÃO
+ * é universal: numa captura HAR completa de 252 requisições reais contra a unidade física do Luiz
+ * (2026-07-06), `/cgi/info` só apareceu numa única combinação (a carga inicial da tela de Status:
+ * `IGD_DEV_INFO+ETH_SWITCH+SYS_MODE+/cgi/info`). Todas as outras 251 requisições reais (single-
+ * seção ou multi-seção) tiveram sucesso (`[error]0`) sem nenhum bloco `/cgi/info`. `buildRequestBody`
+ * NÃO o inclui automaticamente — o chamador deve passá-lo explicitamente como seção
+ * (`"/cgi/info" to emptyList()`) só quando quiser replicar aquele bundle específico.
  *
  * Formato de response (corpo `text/plain`, um bloco por linha de resultado):
  * ```
@@ -41,8 +46,10 @@ internal object TplinkC20ResponseParser {
     private const val SESSION_BLOCK_NAME = "cgi"
 
     /**
-     * Monta o corpo de request para uma lista de seções (nome + campos), incluindo automaticamente
-     * o bloco final `/cgi/info` de sessão com o próximo índice disponível.
+     * Monta o corpo de request para uma lista de seções (nome + campos), na ordem dada. Não inclui
+     * nenhum bloco automaticamente — se o chamador quiser o bloco de sessão `/cgi/info`, deve
+     * incluí-lo explicitamente na lista (`"/cgi/info" to emptyList()`), replicando exatamente a
+     * combinação comprovada por captura real, não uma combinação nova inventada.
      */
     fun buildRequestBody(sections: List<Pair<String, List<String>>>): String {
         val builder = StringBuilder()
@@ -50,8 +57,6 @@ internal object TplinkC20ResponseParser {
             builder.append("[$sectionName#0,0,0,0,0,0#0,0,0,0,0,0]$index,${fields.size}\n")
             fields.forEach { field -> builder.append("$field\n") }
         }
-        val sessionIndex = sections.size
-        builder.append("[/cgi/info#0,0,0,0,0,0#0,0,0,0,0,0]$sessionIndex,0\n")
         return builder.toString()
     }
 

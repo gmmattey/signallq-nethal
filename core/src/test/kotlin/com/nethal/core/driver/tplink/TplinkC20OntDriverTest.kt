@@ -43,24 +43,18 @@ class TplinkC20OntDriverTest {
     }
 
     private fun responsesForSuccessfulSnapshot(): Map<String, TplinkHttpResponse> {
+        // login() e a leitura de device info usam exatamente o mesmo bundle de blocos
+        // (TplinkC20AuthenticationClient.LOGIN_VALIDATION_SECTIONS) — é o único bundle com prova
+        // real de sucesso, por isso as duas chamadas produzem o mesmo request body.
         val deviceInfoRequestBody = TplinkC20ResponseParser.buildRequestBody(
-            listOf(
-                "IGD_DEV_INFO" to listOf("modelName", "description", "X_TP_isFD"),
-                "ETH_SWITCH" to listOf("numberOfVirtualPorts"),
-                "SYS_MODE" to listOf("mode"),
-            ),
+            TplinkC20AuthenticationClient.LOGIN_VALIDATION_SECTIONS,
         )
         val wifiRequestBody = TplinkC20ResponseParser.buildRequestBody(listOf("LAN_WLAN" to listOf("name", "SSID")))
         val clientsRequestBody = TplinkC20ResponseParser.buildRequestBody(
             listOf("LAN_HOST_ENTRY" to listOf("leaseTimeRemaining", "MACAddress", "hostName", "IPAddress")),
         )
-        // login() faz uma leitura só de IGD_DEV_INFO antes do snapshot completo
-        val loginOnlyRequestBody = TplinkC20ResponseParser.buildRequestBody(
-            listOf("IGD_DEV_INFO" to listOf("modelName", "description", "X_TP_isFD")),
-        )
 
         return mapOf(
-            loginOnlyRequestBody to deviceInfoOnlyResponse(),
             deviceInfoRequestBody to deviceInfoBundleResponse(),
             wifiRequestBody to lanWlanResponse(),
             clientsRequestBody to lanHostEntryResponse(),

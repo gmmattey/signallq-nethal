@@ -30,9 +30,11 @@ internal sealed interface TplinkC20DriverResult {
  * Protocolo real: dispatcher único `POST /cgi?1&1&1&8`, corpo `text/plain` com blocos de seção
  * (`TplinkC20ResponseParser`), autenticado via cookie `Authorization: Basic <base64>` em toda
  * chamada — sem endpoint de login dedicado. Capabilities confirmadas nesta rodada:
- * READ_DEVICE_INFO (IGD_DEV_INFO+ETH_SWITCH+SYS_MODE), READ_WIFI_STATUS (LAN_WLAN, parcial:
- * name/SSID), READ_CONNECTED_CLIENTS (LAN_HOST_ENTRY). READ_WAN_STATUS e READ_FIRMWARE
- * permanecem UNKNOWN — seção real não capturada ainda, não implementadas por hipótese.
+ * READ_DEVICE_INFO (IGD_DEV_INFO+ETH_SWITCH+SYS_MODE+/cgi/info — bundle literal comprovado, ver
+ * [TplinkC20AuthenticationClient.LOGIN_VALIDATION_SECTIONS]), READ_WIFI_STATUS (LAN_WLAN, parcial:
+ * name/SSID, sem bloco de sessão — não presente na captura real desta seção), READ_CONNECTED_CLIENTS
+ * (LAN_HOST_ENTRY, idem). READ_WAN_STATUS e READ_FIRMWARE permanecem UNKNOWN — seção real não
+ * capturada ainda, não implementadas por hipótese.
  *
  * Continua separado de `TplinkOntDriver` (Archer C6): mesmo fabricante, protocolos totalmente
  * diferentes (o C6 usa handshake RSA+AES "web encrypted password" via `/cgi_gdpr`; o C20 usa
@@ -71,14 +73,10 @@ internal class TplinkC20OntDriver(
                 val client = TplinkC20AuthenticationClient(host, transport)
                 client.login(username, password)
 
+                // Mesmo bundle exato usado por login() (TplinkC20AuthenticationClient.LOGIN_VALIDATION_SECTIONS)
+                // — evita divergir do único bundle com prova real de sucesso.
                 val deviceInfoBody = client.fetchAuthenticated(
-                    TplinkC20ResponseParser.buildRequestBody(
-                        listOf(
-                            "IGD_DEV_INFO" to listOf("modelName", "description", "X_TP_isFD"),
-                            "ETH_SWITCH" to listOf("numberOfVirtualPorts"),
-                            "SYS_MODE" to listOf("mode"),
-                        ),
-                    ),
+                    TplinkC20ResponseParser.buildRequestBody(TplinkC20AuthenticationClient.LOGIN_VALIDATION_SECTIONS),
                 )
                 val wifiBody = client.fetchAuthenticated(
                     TplinkC20ResponseParser.buildRequestBody(listOf("LAN_WLAN" to listOf("name", "SSID"))),

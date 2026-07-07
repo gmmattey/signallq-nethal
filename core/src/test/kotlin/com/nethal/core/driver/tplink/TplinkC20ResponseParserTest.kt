@@ -13,7 +13,7 @@ import org.junit.Test
 class TplinkC20ResponseParserTest {
 
     @Test
-    fun `buildRequestBody montas blocos de secao com indice e conta de campos, mais bloco de sessao final`() {
+    fun `buildRequestBody monta blocos de secao com indice e conta de campos, sem bloco de sessao automatico`() {
         val body = TplinkC20ResponseParser.buildRequestBody(
             listOf(
                 "IGD_DEV_INFO" to listOf("modelName", "description", "X_TP_isFD"),
@@ -25,10 +25,23 @@ class TplinkC20ResponseParserTest {
         assertTrue(body.contains("[IGD_DEV_INFO#0,0,0,0,0,0#0,0,0,0,0,0]0,3"))
         assertTrue(body.contains("[ETH_SWITCH#0,0,0,0,0,0#0,0,0,0,0,0]1,1"))
         assertTrue(body.contains("[SYS_MODE#0,0,0,0,0,0#0,0,0,0,0,0]2,1"))
-        assertTrue(body.contains("[/cgi/info#0,0,0,0,0,0#0,0,0,0,0,0]3,0"))
+        assertFalse("buildRequestBody nao deve inventar bloco de sessao sem pedido explicito", body.contains("/cgi/info"))
         assertTrue(body.contains("modelName"))
         assertTrue(body.contains("numberOfVirtualPorts"))
         assertTrue(body.contains("mode"))
+    }
+
+    @Test
+    fun `buildRequestBody inclui bloco de sessao cgi-info so quando explicitamente pedido, replicando o bundle real comprovado`() {
+        val body = TplinkC20ResponseParser.buildRequestBody(
+            listOf(
+                "IGD_DEV_INFO" to listOf("modelName"),
+                "/cgi/info" to emptyList(),
+            ),
+        )
+
+        assertTrue(body.contains("[IGD_DEV_INFO#0,0,0,0,0,0#0,0,0,0,0,0]0,1"))
+        assertTrue(body.contains("[/cgi/info#0,0,0,0,0,0#0,0,0,0,0,0]1,0"))
     }
 
     @Test
