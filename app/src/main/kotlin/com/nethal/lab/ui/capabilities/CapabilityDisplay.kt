@@ -44,6 +44,12 @@ fun capabilityLabel(id: CapabilityId): String = when (id) {
     // para a exaustividade do enum/vocabulário de exibição; a Tela 4 ainda não tem fluxo de
     // execução de ação, ver KDoc de CapabilityId.RUN_NATIVE_DIAGNOSTIC_PING no core.
     CapabilityId.RUN_NATIVE_DIAGNOSTIC_PING -> "Ping nativo do equipamento"
+    // MEASURE_LATENCY/CHECK_PORT (issues #91/#99, #94/#100) não fluem por DriverFamily/
+    // CapabilityEngine — são probes TCP do próprio telefone (ver KDoc de CapabilityId no core),
+    // nunca aparecem nesta lista de leitura por Driver Family. Rótulo aqui só por exaustividade do
+    // enum/vocabulário de exibição.
+    CapabilityId.MEASURE_LATENCY -> "Latência (TCP)"
+    CapabilityId.CHECK_PORT -> "Verificação de porta"
 }
 
 /** Rótulo em português de [CapabilityState] — mesmo vocabulário do exemplo da spec §11 ("disponível", "requer login", "experimental"). */

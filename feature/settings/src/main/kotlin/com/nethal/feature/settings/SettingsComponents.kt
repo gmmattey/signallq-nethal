@@ -2,6 +2,7 @@ package com.nethal.feature.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -56,6 +57,9 @@ internal fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
  * Linha de item de configuração. `onClick` nulo = não interativa (sem dado real ou capability
  * ainda, ver KDoc de [SettingsScreen]) — visualmente presente conforme protótipo, mas sem
  * simular navegação/ação que não existe.
+ *
+ * [leadingIcon] (issue #136, seção FERRAMENTAS AVANÇADAS) é opcional — nenhuma linha existente
+ * usava ícone à esquerda antes, `null` preserva o layout de todo o resto da tela sem alteração.
  */
 @Composable
 internal fun SettingsRow(
@@ -66,6 +70,7 @@ internal fun SettingsRow(
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     showChevron: Boolean = true,
     showDivider: Boolean = true,
+    leadingIcon: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -76,6 +81,9 @@ internal fun SettingsRow(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (leadingIcon != null) {
+                Box(modifier = Modifier.padding(end = 12.dp)) { leadingIcon() }
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -26,11 +27,14 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nethal.core.designsystem.R
 import com.nethal.core.designsystem.theme.LocalNetHalExtendedColors
 import com.nethal.core.designsystem.theme.ThemeMode
+import com.nethal.core.navigation.AdvancedToolDestination
 
 /**
  * Tela "Configurações" (issue #85), layout dos protótipos `3c`/`3f`
@@ -38,18 +42,21 @@ import com.nethal.core.designsystem.theme.ThemeMode
  * módulo, ADR 0002 Fase 2) para o toggle de saída do programa beta — decisão #66: o opt-in em si
  * fica no onboarding "Notificações" (#71), aqui só referencia o mesmo estado.
  *
- * Seções `EQUIPAMENTO` e `FERRAMENTAS AVANÇADAS` do protótipo **não entram nesta entrega**:
- * - `EQUIPAMENTO` (reiniciar, atualizar firmware, trocar senha de admin, restaurar padrões de
- *   fábrica) exige uma sessão de equipamento ativa cross-tab, que não existe nesta arquitetura
- *   (o `BottomNavHost`/#67 não carrega `CapabilityEngine`/`NetworkTarget` nenhum para as abas) e
- *   capabilities de escrita que nenhum driver declara hoje (`READ_ONLY_ALPHA` em todos). Implementar
- *   botões que não fazem nada, ou que fingem uma sessão que não existe, é pior que não ter a seção.
- * - `FERRAMENTAS AVANÇADAS` aponta para telas de ferramentas (`#4a`-`#4i`) que vivem em módulos
- *   `:feature:tools-*` (#89-96) que ainda não existem — linkar para lá violaria a regra de
- *   dependência única da ADR 0002 (`:feature:*` nunca depende de outro `:feature:*`).
+ * Seção `EQUIPAMENTO` do protótipo **não entra nesta entrega**: exige uma sessão de equipamento
+ * ativa cross-tab, que não existe nesta arquitetura (o `BottomNavHost`/#67 não carrega
+ * `CapabilityEngine`/`NetworkTarget` nenhum para as abas) e capabilities de escrita que nenhum
+ * driver declara hoje (`READ_ONLY_ALPHA` em todos). Implementar botões que não fazem nada, ou que
+ * fingem uma sessão que não existe, é pior que não ter a seção — fica registrada como gap
+ * conhecido (não peça de UI escondida); Rafael decide se abre issue de acompanhamento quando a
+ * base existir.
  *
- * Ambas ficam registradas como gap conhecido (não peça de UI escondida) — Rafael decide se abre
- * issue de acompanhamento quando a base (#83/#84 e #89-96) existir.
+ * `FERRAMENTAS AVANÇADAS` (issue #136) reintroduzida: [availableTools] chega já filtrada por quem
+ * monta o grafo (`SettingsGraph.settingsGraph`, consultando `navController.graph` — nenhuma
+ * dependência direta deste módulo em `:feature:tools-*`, regra de dependência única da ADR 0002).
+ * Uma entrada só existe na lista se a rota correspondente já estiver registrada de fato no
+ * `NavHost` compartilhado — sem hardcode das 7 entradas do protótipo de uma vez, sem link morto: a
+ * seção inteira desaparece (nunca um cabeçalho vazio) enquanto nenhuma ferramenta estiver
+ * registrada.
  *
  * Itens sem dado real (Notificações/Idioma sem tela própria, Termos de uso e Licenças de código
  * aberto sem conteúdo) aparecem como linha não-interativa com rótulo "Em breve" — nunca um número
@@ -60,7 +67,9 @@ import com.nethal.core.designsystem.theme.ThemeMode
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     appVersionLabel: String,
+    availableTools: List<AdvancedToolDestination> = emptyList(),
     onOpenPrivacy: () -> Unit,
+    onOpenTool: (String) -> Unit = {},
 ) {
     val isBetaProgramActive by viewModel.isBetaProgramActive.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
@@ -106,6 +115,10 @@ fun SettingsScreen(
                         showDivider = false,
                     )
                 }
+            }
+
+            if (availableTools.isNotEmpty()) {
+                AdvancedToolsSection(tools = availableTools, onOpenTool = onOpenTool)
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -199,6 +212,39 @@ private fun ThemeModeDialog(
             TextButton(onClick = onDismiss) { Text("Fechar") }
         },
     )
+}
+
+/**
+ * Seção "FERRAMENTAS AVANÇADAS" (issue #136, protótipos `3c`/`3f` linha ~709) — [tools] já chega
+ * filtrada por rota registrada (ver [SettingsScreen]); esta função só desenha o que recebe, nunca
+ * decide o que é "disponível".
+ */
+@Composable
+private fun AdvancedToolsSection(tools: List<AdvancedToolDestination>, onOpenTool: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SettingsSectionHeader("FERRAMENTAS AVANÇADAS")
+        SettingsSectionCard {
+            tools.forEachIndexed { index, tool ->
+                SettingsRow(
+                    title = tool.label,
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(tool.iconRes()),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    showDivider = index != tools.lastIndex,
+                    onClick = { onOpenTool(tool.route) },
+                )
+            }
+        }
+    }
+}
+
+private fun AdvancedToolDestination.iconRes(): Int = when (this) {
+    AdvancedToolDestination.PING -> R.drawable.ic_tool_ping
+    AdvancedToolDestination.PORT_CHECK -> R.drawable.ic_tool_port_check
 }
 
 @Composable

@@ -44,6 +44,19 @@ package com.nethal.core.model
  * que o desenho de driver permitisse tecnicamente nos dois. Exige confirmação explícita do usuário
  * antes de executar, sem exceção (`/seguranca-nethal`) — responsabilidade da UI (`:feature:tools-
  * reboot-wan`), o Core nunca executa sozinho.
+ *
+ * **`MEASURE_LATENCY`** (issues #91/#99) e **`CHECK_PORT`** (issues #94/#100): mais radicais que
+ * `RUN_NATIVE_DIAGNOSTIC_PING` — nem essas fluem pelo `DriverFamily.readCapability(id)`, mas
+ * também **não são executadas pelo equipamento**: são probes TCP feitas pelo próprio telefone
+ * contra um host da LAN local (`java.net.Socket`, sem ICMP — Android 10+ não permite raw socket
+ * sem root). Por isso são agnósticas de Driver Family/fabricante por natureza, não só por decisão
+ * de escopo — funcionam contra qualquer host da rede local, pareado ou não. Implementação real em
+ * `com.nethal.core.protocol.tcp.LatencyMeasurer`/`PortChecker` (`:core:protocol`), consumida
+ * direto pela ViewModel de cada tela (`:feature:tools-ping`) — permanecem no vocabulário de
+ * `CapabilityId` por completude/documentação (skill `/modelo-capacidades`), não porque
+ * `CapabilityEngine` as executa. Guard de IP privado obrigatório (RFC 1918/loopback,
+ * `com.nethal.core.protocol.tcp.TcpProbe`, mesmo guard de `HttpTransportIpGuard`) — nunca aceitam
+ * alvo fora da LAN (`CLAUDE.md`, "Escopo fora do MVP").
  */
 enum class CapabilityId {
     READ_DEVICE_INFO,
@@ -83,6 +96,8 @@ enum class CapabilityId {
     REBOOT_DEVICE,
     RESTART_WIFI,
     RUN_NATIVE_DIAGNOSTIC_PING,
+    MEASURE_LATENCY,
+    CHECK_PORT,
 }
 
 enum class CapabilityState {

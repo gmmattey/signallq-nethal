@@ -46,11 +46,22 @@ SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
 RUN_NATIVE_DIAGNOSTIC_PING
+MEASURE_LATENCY
+CHECK_PORT
 ```
 
 `RUN_NATIVE_DIAGNOSTIC_PING` (issues #23/#24) é classificada como **ação**, não leitura pura —
 dispara um teste real no equipamento. Restrita ao driver TP-Link Archer C6 (issue #26); a versão
 Nokia (issue #25) fica pausada em backlog até revisão de segurança separada.
+
+`MEASURE_LATENCY` (issues #91/#99) e `CHECK_PORT` (issues #94/#100) são ainda mais radicais que
+`RUN_NATIVE_DIAGNOSTIC_PING`: não são executadas pelo equipamento nem fluem por
+`DriverFamily.readCapability(id)`/`CapabilityEngine` — são probes TCP feitas pelo próprio telefone
+contra um host da LAN local (`java.net.Socket`, sem ICMP). Agnósticas de Driver Family/fabricante
+por natureza, não só por escopo: funcionam contra qualquer host da rede local. Implementação real
+em `com.nethal.core.protocol.tcp.LatencyMeasurer`/`PortChecker` (`:core:protocol`), guard de IP
+privado obrigatório (RFC 1918/loopback) herdado de `TcpProbe`/`HttpTransportIpGuard` — nunca
+aceitam alvo fora da LAN.
 
 Nomenclatura alternativa normalizada por verbo/objeto (usada em análises de arquitetura, `docs/architecture/driver-adoption-strategy.md`): `wan.status.read`, `wifi.ssid.write`, `clients.list.read`, `system.reboot.write` etc. As duas notações representam o mesmo conceito — escolher uma e manter consistência dentro do mesmo componente.
 

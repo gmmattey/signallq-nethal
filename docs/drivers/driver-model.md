@@ -52,6 +52,8 @@ SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
 RUN_NATIVE_DIAGNOSTIC_PING
+MEASURE_LATENCY
+CHECK_PORT
 ```
 
 `READ_GPON_ERROR_COUNTERS` e `READ_LAN_PORT_STATUS` foram adicionadas ao vocabulário em 2026-07-11
@@ -85,6 +87,20 @@ request/resultado agnóstico de vendor (`NativeDiagnosticPingRequest`/`NativeDia
 `DriverFamily.readCapability(id)`/`CapabilityEngine` genérico (hoje estritamente `READ_ONLY`, sem
 parâmetro de request) — cada Driver Family que implementar expõe um método dedicado, ver
 `TpLinkStokLuciDriverFamily.runNativeDiagnosticPing`.
+
+**`MEASURE_LATENCY`** (issues #91/#99) e **`CHECK_PORT`** (issues #94/#100) — mais radicais que
+`RUN_NATIVE_DIAGNOSTIC_PING`: nem essas fluem pelo `DriverFamily.readCapability(id)`, mas também
+**não são executadas pelo equipamento**. São probes TCP feitas pelo próprio telefone contra um host
+da LAN local (`java.net.Socket`, sem ICMP — Android 10+ não permite raw socket sem root), por isso
+agnósticas de Driver Family/fabricante por natureza (funcionam contra qualquer host da rede local,
+pareado ou não), não só por decisão de escopo. Técnica extraída de duas funções quase idênticas do
+SignallQ (`GatewayLatencyMeasurer.medirConexaoTcp`, `ScannerDispositivosAndroid.testarPortaAberta`)
+numa única classe utilitária (`com.nethal.core.protocol.tcp.TcpProbe`, `:core:protocol`),
+reaproveitada por `LatencyMeasurer` (`MEASURE_LATENCY`) e `PortChecker` (`CHECK_PORT`). Guard de IP
+privado obrigatório herdado de `HttpTransportIpGuard` (RFC 1918/loopback, issue #55) — nunca aceita
+alvo fora da LAN, mesmo que o usuário digite um IP público no campo de texto da tela. Consumidas
+direto pela ViewModel de cada tela (`:feature:tools-ping`), não pelo `CapabilityEngine` — permanecem
+no vocabulário de `CapabilityId` por completude/documentação, não porque o engine as executa.
 
 ## Catálogo de compatibilidade (Driver Registry)
 
