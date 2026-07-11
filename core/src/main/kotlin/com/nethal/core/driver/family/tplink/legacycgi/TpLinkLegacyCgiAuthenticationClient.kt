@@ -16,6 +16,18 @@ internal enum class TpLinkLegacyCgiLoginFailureReason {
     INVALID_CREDENTIALS,
     UNEXPECTED_RESPONSE,
     UNKNOWN,
+
+    /**
+     * Sinaliza que uma chamada autenticada ([fetchAuthenticated]) pós-login falhou com HTTP 401/403
+     * — mesma heurística conservadora de [com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciLoginFailureReason.SESSION_EXPIRED],
+     * adaptada a este protocolo: aqui não existe token de sessão de fato (a "sessão" é o cookie
+     * `Authorization` reenviado a cada chamada), mas um 401/403 numa leitura que veio depois de um
+     * `login()` bem-sucedido com o mesmo cookie é o único sinal observável de "a credencial que
+     * funcionava parou de funcionar entre chamadas" — distinto de [INVALID_CREDENTIALS] (usado só
+     * durante o próprio [TpLinkLegacyCgiAuthenticationClient.login]). Sem confirmação por evidência
+     * ao vivo desse cenário específico contra o hardware do Luiz.
+     */
+    SESSION_EXPIRED,
 }
 
 internal class TpLinkLegacyCgiLoginException(
@@ -142,12 +154,30 @@ internal class TpLinkLegacyCgiAuthenticationClient(
      * Faz uma chamada de dados autenticada contra o dispatcher `/cgi`, reenviando o cookie
      * `Authorization` validado por [login]. `requestBody` deve ser montado via
      * [TpLinkLegacyCgiResponseParser.buildRequestBody].
+     *
+     * HTTP 401/403 aqui é tratado como [TpLinkLegacyCgiLoginFailureReason.SESSION_EXPIRED] — ver
+     * KDoc do enum. Antes desta issue, este método nunca checava `statusCode` (só devolvia o corpo),
+     * porque nada reaproveitava a sessão entre chamadas para uma expiração ter chance de acontecer.
      */
     @Throws(IOException::class)
     fun fetchAuthenticated(requestBody: String): String {
         val cookieValue = authorizationCookieValue
         check(cookieValue != null) { "fetchAuthenticated chamado antes de login() bem-sucedido" }
         val response = transport.post(cgiEndpoint, requestBody, authenticatedHeaders(cookieValue))
+
+        if (response.statusCode == 401 || response.statusCode == 403) {
+            throw TpLinkLegacyCgiLoginException(
+                TpLinkLegacyCgiLoginFailureReason.SESSION_EXPIRED,
+                "leitura autenticada falhou: status=${response.statusCode} (credencial que funcionava parou de ser aceita)",
+            )
+        }
+        if (response.statusCode != 200) {
+            throw TpLinkLegacyCgiLoginException(
+                TpLinkLegacyCgiLoginFailureReason.UNEXPECTED_RESPONSE,
+                "leitura autenticada falhou: status=${response.statusCode}",
+            )
+        }
+
         return response.body
     }
 }
