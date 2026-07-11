@@ -529,6 +529,74 @@ cobertos) — a refatoração move e renomeia comportamento validado, não reesc
 
 ---
 
+---
+
+## 10.1 Composition Root + App Integration (concluído em 2026-07-10)
+
+O passo formal 8 acima é "Atualizar documentação". Este passo 10.1 documenta o trabalho de integração
+que complementou a arquitetura proposta no §10:
+
+**Concluído nesta rodada:**
+- **Composition Root:** `core/src/main/kotlin/com/nethal/core/driver/family/DriverFamilies.kt` —
+  centraliza o mapa fixo `driverFamilyId -> DriverFamilyFactory` (estático, não via reflection),
+  montado uma única vez na inicialização do `core`. Vive em `core`, não em `app`, conforme decisão
+  explícita do Luiz em 2026-07-06 — quando app/Capability Engine reais precisarem, pode ser exposto
+  como API pública do `core` consumida pelo `app`.
+- **Driver Families produção:** Implementadas e registradas no composition root:
+  - `TpLinkLegacyCgiDriverFamily` — TP-Link Archer C20, dispatcher `/cgi?1&1&1&8` + HTTP Basic auth
+  - `TpLinkStokLuciDriverFamily` — TP-Link Archer C6, protocolo `/cgi-bin/luci` + token `stok`
+  - `NokiaGponDriverFamily` — Nokia G-1425G-B, RSA+AES + GPON
+  - `TpLinkGdprCgiDriverFamily` e `TpLinkXdrDsDriverFamily` — experimental, parser sem hardware confirmado
+- **Capability Engine:** `core/src/main/kotlin/com/nethal/core/capability/CapabilityEngine.kt` —
+  autentica de forma lazy contra uma `DriverFamily` resolvida, reaproveita sessão entre leituras,
+  renova em caso de expiração (`CapabilityReadResult.SessionExpired`).
+- **Telas do NetHAL Lab (app):** Telas 1-6 implementadas com Jetpack Compose, consumindo Driver Family
+  real via Capability Engine:
+  - Tela 1: Discovery (List)
+  - Tela 2: Device Detail
+  - Tela 4: Capabilities
+  - Tela 5: Autenticação
+  - Tela 6: Relatório
+- **Testes:** 235+ cenários de teste, discovery e capability engine validados contra hardware real.
+
+**Decisão de arquitetura (2026-07-06):** Composition root permanece em `core` com API pública consumida
+pelo `app`, nunca migrado para `app` nesta rodada. Possível revisão futura se Capability Engine migrar
+para `app` como consumidor primário — por enquanto, é componente do `core` que o `app` consome via
+injeção de dependências.
+---
+
+## 10.1 Composition Root + App Integration (concluído em 2026-07-10)
+
+O passo formal 8 acima é "Atualizar documentação". Este passo 10.1 documenta o trabalho de integração
+que complementou a arquitetura proposta no §10:
+
+**Concluído nesta rodada:**
+- **Composition Root:** `core/src/main/kotlin/com/nethal/core/driver/family/DriverFamilies.kt` —
+  centraliza o mapa fixo `driverFamilyId -> DriverFamilyFactory` (estático, não via reflection),
+  montado uma única vez na inicialização do `core`. Vive em `core`, não em `app`, conforme decisão
+  explícita do Luiz em 2026-07-06 — quando app/Capability Engine reais precisarem, pode ser exposto
+  como API pública do `core` consumida pelo `app`.
+- **Driver Families produção:** Implementadas e registradas no composition root:
+  - `TpLinkLegacyCgiDriverFamily` — TP-Link Archer C20, dispatcher `/cgi?1&1&1&8` + HTTP Basic auth
+  - `TpLinkStokLuciDriverFamily` — TP-Link Archer C6, protocolo `/cgi-bin/luci` + token `stok`
+  - `NokiaGponDriverFamily` — Nokia G-1425G-B, RSA+AES + GPON
+  - `TpLinkGdprCgiDriverFamily` e `TpLinkXdrDsDriverFamily` — experimental, parser sem hardware confirmado
+- **Capability Engine:** `core/src/main/kotlin/com/nethal/core/capability/CapabilityEngine.kt` —
+  autentica de forma lazy contra uma `DriverFamily` resolvida, reaproveita sessão entre leituras,
+  renova em caso de expiração (`CapabilityReadResult.SessionExpired`).
+- **Telas do NetHAL Lab (app):** Telas 1-6 implementadas com Jetpack Compose, consumindo Driver Family
+  real via Capability Engine:
+  - Tela 1: Discovery (List)
+  - Tela 2: Device Detail
+  - Tela 4: Capabilities
+  - Tela 5: Autenticação
+  - Tela 6: Relatório
+- **Testes:** 235+ cenários de teste, discovery e capability engine validados contra hardware real.
+
+**Decisão de arquitetura (2026-07-06):** Composition root permanece em `core` com API pública consumida
+pelo `app`, nunca migrado para `app` nesta rodada. Possível revisão futura se Capability Engine migrar
+para `app` como consumidor primário — por enquanto, é componente do `core` que o `app` consome via
+injeção de dependências.
 ## 11. Decisões do Luiz (2026-07-06)
 
 1. **Platform fica só como metadado de catálogo, não vira tipo Kotlin agora.** Confirma a
