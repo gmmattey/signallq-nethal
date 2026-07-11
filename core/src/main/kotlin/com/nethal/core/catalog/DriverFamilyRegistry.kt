@@ -41,4 +41,11 @@ class DriverFamilyRegistry(private val factories: Map<String, DriverFamilyFactor
             ?: throw UnknownDriverFamilyException(profile.driverFamilyId)
         return factory.create(profile, host, transport)
     }
+
+    /**
+     * Todos os `driverFamilyId` com factory registrada. Usado por testes de integridade
+     * (`DriverFamilyCatalogIntegrityTest`) para checar o invariante inverso: toda família
+     * registrada deve ser referenciada por ao menos um profile do catálogo (issue #42).
+     */
+    fun registeredFamilyIds(): Set<String> = factories.keys
 }
