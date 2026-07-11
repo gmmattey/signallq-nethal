@@ -22,9 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nethal.core.designsystem.R
-import com.nethal.core.designsystem.theme.OnSurfaceVariantDark
-import com.nethal.core.designsystem.theme.SurfaceDark
-import com.nethal.core.designsystem.theme.SurfaceVariantDark
 
 /**
  * Cabeçalho de seção da tela de Configurações (protótipos 3c/3f) — texto maiúsculo, letter
@@ -38,7 +35,7 @@ internal fun SettingsSectionHeader(title: String) {
         style = MaterialTheme.typography.labelSmall.copy(
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.2.sp,
-            color = OnSurfaceVariantDark,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
     )
 }
@@ -50,7 +47,7 @@ internal fun SettingsSectionCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(SurfaceDark),
+            .background(MaterialTheme.colorScheme.surface),
         content = content,
     )
 }
@@ -89,7 +86,7 @@ internal fun SettingsRow(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = OnSurfaceVariantDark,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -98,7 +95,7 @@ internal fun SettingsRow(
                 Text(
                     text = trailingText,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = OnSurfaceVariantDark,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = 6.dp),
                 )
             }
@@ -114,7 +111,7 @@ internal fun SettingsRow(
             HorizontalDivider(
                 modifier = Modifier.padding(start = 16.dp),
                 thickness = 1.dp,
-                color = SurfaceVariantDark,
+                color = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
     }

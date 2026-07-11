@@ -6,20 +6,31 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nethal.core.designsystem.theme.ErrorDark
-import com.nethal.core.designsystem.theme.OnSurfaceVariantDark
+import com.nethal.core.designsystem.theme.LocalNetHalExtendedColors
+import com.nethal.core.designsystem.theme.ThemeMode
 
 /**
  * Tela "Configurações" (issue #85), layout dos protótipos `3c`/`3f`
@@ -40,10 +51,10 @@ import com.nethal.core.designsystem.theme.OnSurfaceVariantDark
  * Ambas ficam registradas como gap conhecido (não peça de UI escondida) — Rafael decide se abre
  * issue de acompanhamento quando a base (#83/#84 e #89-96) existir.
  *
- * Itens sem dado real (Notificações/Aparência/Idioma sem tela própria, Termos de uso e Licenças de
- * código aberto sem conteúdo) aparecem como linha não-interativa com rótulo "Em breve" — nunca um
- * número ou destino inventado. "Aparência: Escuro" e "Idioma: Português (Brasil)" são fatos reais
- * do app hoje (dark-only, só pt-BR), não dado fabricado.
+ * Itens sem dado real (Notificações/Idioma sem tela própria, Termos de uso e Licenças de código
+ * aberto sem conteúdo) aparecem como linha não-interativa com rótulo "Em breve" — nunca um número
+ * ou destino inventado. "Idioma: Português (Brasil)" é fato real do app hoje (só pt-BR), não dado
+ * fabricado. "Aparência" passou a ser um seletor real (Claro/Escuro/Sistema, issue #132).
  */
 @Composable
 fun SettingsScreen(
@@ -52,6 +63,8 @@ fun SettingsScreen(
     onOpenPrivacy: () -> Unit,
 ) {
     val isBetaProgramActive by viewModel.isBetaProgramActive.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     Scaffold { padding ->
         Column(
@@ -83,8 +96,8 @@ fun SettingsScreen(
                     )
                     SettingsRow(
                         title = "Aparência",
-                        trailingText = "Escuro",
-                        showChevron = false,
+                        trailingText = themeMode.label(),
+                        onClick = { showThemeDialog = true },
                     )
                     SettingsRow(
                         title = "Idioma",
@@ -121,7 +134,71 @@ fun SettingsScreen(
                 }
             }
         }
+
+        if (showThemeDialog) {
+            ThemeModeDialog(
+                selected = themeMode,
+                onSelect = {
+                    viewModel.setThemeMode(it)
+                    showThemeDialog = false
+                },
+                onDismiss = { showThemeDialog = false },
+            )
+        }
     }
+}
+
+/** Rótulo pt-BR de cada modo de tema para a linha "Aparência" e para o diálogo do seletor. */
+private fun ThemeMode.label(): String = when (this) {
+    ThemeMode.LIGHT -> "Claro"
+    ThemeMode.DARK -> "Escuro"
+    ThemeMode.SYSTEM -> "Sistema"
+}
+
+/**
+ * Seletor de tema (issue #132): sub-diálogo com 3 opções de rádio. Escolhido em vez de
+ * `SegmentedButton`/`DropdownMenu` por caber no padrão de linha-abre-detalhe já usado nesta tela e
+ * por deixar espaço para a legenda de "Sistema" sem apertar o layout. A troca aplica na hora —
+ * `onSelect` persiste e o composition root em `:app` recompõe o tema.
+ */
+@Composable
+private fun ThemeModeDialog(
+    selected: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("theme_mode_dialog"),
+        title = { Text(text = "Aparência", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.selectableGroup()) {
+                ThemeMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = mode == selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(mode) },
+                            )
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = mode == selected, onClick = null)
+                        Text(
+                            text = mode.label(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Fechar") }
+        },
+    )
 }
 
 @Composable
@@ -149,14 +226,17 @@ private fun BetaProgramSection(isActive: Boolean, onLeaveClick: () -> Unit) {
                         text = "Sair interrompe o envio de novos relatórios. Relatórios já " +
                             "enviados são anônimos e não podem ser removidos individualmente.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = OnSurfaceVariantDark,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     OutlinedButton(
                         onClick = onLeaveClick,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Sair do programa beta", color = ErrorDark)
+                        Text(
+                            "Sair do programa beta",
+                            color = LocalNetHalExtendedColors.current.error,
+                        )
                     }
                 }
             }
