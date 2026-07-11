@@ -95,7 +95,13 @@ private fun LoadingBody() {
 
 @Composable
 private fun SessionUnavailableBody(state: StatusUiState.SessionUnavailable) {
-    Card(modifier = Modifier.fillMaxWidth().testTag("status_session_unavailable")) {
+    // Mesmo padrão de shape/cor dos demais cards desta tela (26dp sobre `colorScheme.surface`) —
+    // `Card()` sem esses parâmetros usa o default M3, que destoa do resto da tela.
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("status_session_unavailable"),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(text = "Sessão indisponível", style = MaterialTheme.typography.titleMedium)
             Text(text = state.reason, style = MaterialTheme.typography.bodyMedium)

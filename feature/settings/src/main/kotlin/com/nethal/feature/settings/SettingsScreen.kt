@@ -85,9 +85,11 @@ fun SettingsScreen(
                 .testTag("home_settings_screen"),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
+            // "título de tela" do design system (30/38·700) — mesmo slot de Status/Rede/
+            // Dispositivos; `headlineMedium` + bold manual saía menor (28sp) que o resto do app.
             Text(
                 text = "Configurações",
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.headlineLarge,
             )
 
             BetaProgramSection(

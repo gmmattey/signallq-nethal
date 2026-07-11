@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -45,7 +47,9 @@ fun DevicesScreen(viewModel: DevicesViewModel) {
                 .testTag("home_devices_screen"),
         ) {
             Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 8.dp)) {
-                Text(text = "Dispositivos", style = MaterialTheme.typography.headlineMedium)
+                // "título de tela" do design system (30/38·700) — mesmo slot de Status/Rede/
+                // Configurações.
+                Text(text = "Dispositivos", style = MaterialTheme.typography.headlineLarge)
                 Text(
                     text = subtitleFor(state),
                     style = MaterialTheme.typography.bodyMedium,
@@ -99,7 +103,14 @@ private fun DeviceList(devices: List<LanDevice>) {
 
 @Composable
 private fun DeviceRow(device: LanDevice) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    // Shape/cor explícitos (design system: cards arredondados 20dp sobre `colorScheme.surface`) —
+    // `Card()` sem esses parâmetros cai no default do M3 (canto ~12dp, `surfaceContainerLow`
+    // calculado por elevação tonal), destoando do resto do app, que nunca usa o Card "cru".
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = device.hostname ?: labelFor(device.deviceType),

@@ -101,7 +101,10 @@ private fun LoadedContent(padding: PaddingValues, state: WifiNetworkUiState.Load
             .testTag("network_loaded_content"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(text = "Wi-Fi & Rede", style = MaterialTheme.typography.headlineMedium)
+        // "título de tela" do design system (30/38·700) — mesmo slot usado por Status/Dispositivos/
+        // Configurações; `headlineMedium` deixava este título visivelmente menor/mais fino que o
+        // resto do app.
+        Text(text = "Wi-Fi & Rede", style = MaterialTheme.typography.headlineLarge)
 
         if (state.radios.isEmpty()) {
             val reason = state.radiosUnavailableReason
