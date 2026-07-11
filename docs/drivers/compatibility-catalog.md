@@ -329,6 +329,41 @@ C20 como `TpLinkLegacyCgiDriverFamily`), aprovado com esta ressalva documentada.
 
 ## Changelog
 
+- **2026-07-10 (Bruno — migração de `NokiaOntDriver` para `NokiaGponDriverFamily`, issue #18)** —
+  `nokia_g1425gb_v1` declarava `driverFamilyId: "nokia-ont-gpon-driver"` desde o manifesto
+  `2026.07.06`, mas nenhuma `DriverFamilyFactory` estava registrada sob essa chave em
+  `defaultDriverFamilyRegistry()` — `DriverFamilyRegistry.resolve()` lançava
+  `UnknownDriverFamilyException` para este profile. Corrigido: `NokiaGponDriverFamily`/
+  `NokiaGponDriverFamilyFactory` novos em
+  `core/src/main/kotlin/com/nethal/core/driver/family/nokia/gpon/`, implementando `DriverFamily`
+  no mesmo molde de `TpLinkStokLuciDriverFamily` (issue #16) — `authenticate()` cacheia o
+  `NokiaAuthenticationClient` autenticado, `readCapability()` reaproveita essa sessão entre
+  chamadas. Reaproveita `NokiaResponseParser`/`NokiaAuthenticationClient` (pacote
+  `driver/nokia/`) sem reescrever; `NokiaOntDriver.readSnapshot` **não foi tocado**, continua o
+  caminho já validado ao vivo, agora em paralelo ao novo.
+  - Novo manifesto `catalog-2026.07.25.json` (`previousManifest: catalog-2026.07.24.json`):
+    profile `nokia_g1425gb_v1` ganha `driverConfig` (os 5 endpoints antes hardcoded em
+    `NokiaOntDriver.readSnapshot`, agora dado de catálogo — mesma regra de
+    `TpLinkStokLuciDriverConfig`/`TpLinkLegacyCgiDriverConfig`, "nunca hardcodar endpoint na
+    Driver Family"). `stage`/`capabilities[]`/`confidenceScoreOverall` inalterados — mudança é
+    estrutural (config-driven), não nova evidência de campo.
+  - `readCapability` cobre `READ_WAN_STATUS`, `READ_DEVICE_INFO`, `READ_CONNECTED_CLIENTS`,
+    `READ_SIGNAL` (óptica GPON, novo `CapabilityPayload.Signal`/modelo `SignalStatus`) com
+    `Success` real; `READ_DEVICE_INFO` usa o `CapabilityPayload.DeviceInfo` novo (modelo
+    `DeviceInfo` já existia em `core/model/`, sem uso até aqui). `READ_WIFI_STATUS`/
+    `READ_LAN_STATUS` devolvem `Unavailable` honesto e explícito ("Nokia é ONT, não expõe
+    Wi-Fi/LAN neste payload") — não omitidos, conforme complemento de escopo do Rafael na issue.
+  - `SessionExpired`: sessão Nokia não sinaliza expiração por HTTP 401/403 como o TP-Link
+    stok/luci — o firmware devolve HTTP 200 com corpo
+    `<script>var Errorinfo ="Bad request for invalid parameter in the coookie.";...</script>`
+    (já documentado como bug conhecido nesta mesma seção de changelog, entrada 2026-07-08).
+    `NokiaGponDriverFamily` detecta esse marcador textual e devolve `CapabilityReadResult.
+    SessionExpired` em vez de tentar parsear um corpo de erro como se fosse dado real — o
+    `CapabilityEngine` renova a sessão a partir daí, mesmo fluxo genérico já usado pelo TP-Link.
+  - Suíte `:core:test` verde: 220 testes, 0 falhas (12 testes novos em
+    `NokiaGponDriverFamilyTest`, 4 em `NokiaGponCapabilityEngineIntegrationTest`, 1 em
+    `DriverFamilyRegistryIntegrationTest` provando a resolução real via catálogo embarcado).
+
 - **2026-07-09 (Diego — verificação da hipótese "HTTP 299 tratado como não-sucesso" a partir do
   `NOKIA_GPON_FIELD_MAP.md` do SignallQ: não confirmada, nenhum bug adicional; corrobora o fix
   anterior; `stage` mantido, sem decisão de promoção)** — Luiz trouxe um levantamento irmão feito no

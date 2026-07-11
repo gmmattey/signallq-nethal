@@ -14,7 +14,7 @@ class DriverRegistryTest {
     fun `loads embedded manifest with the four real profiles`() {
         val registry = DefaultDriverRegistry(embeddedManifestLoader = ::loadEmbeddedCatalogResource)
 
-        assertEquals("2026.07.24", registry.manifestVersion())
+        assertEquals("2026.07.25", registry.manifestVersion())
         assertEquals(4, registry.profiles().size)
     }
 
@@ -80,7 +80,7 @@ class DriverRegistryTest {
 
         assertTrue(result is CatalogSyncResult.Failed)
         assertEquals(4, registry.profiles().size)
-        assertEquals("2026.07.24", registry.manifestVersion())
+        assertEquals("2026.07.25", registry.manifestVersion())
     }
 
     @Test
@@ -90,7 +90,7 @@ class DriverRegistryTest {
         val result = registry.sync()
 
         assertTrue(result is CatalogSyncResult.NotAttempted)
-        assertEquals("2026.07.24", registry.manifestVersion())
+        assertEquals("2026.07.25", registry.manifestVersion())
     }
 
     /**

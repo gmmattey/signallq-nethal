@@ -1,6 +1,7 @@
 package com.nethal.core.driver.family
 
 import com.nethal.core.catalog.DriverFamilyRegistry
+import com.nethal.core.driver.family.nokia.gpon.NokiaGponDriverFamilyFactory
 import com.nethal.core.driver.family.tplink.gdprcgi.TpLinkGdprCgiDriverFamilyFactory
 import com.nethal.core.driver.family.tplink.legacycgi.TpLinkLegacyCgiDriverFamilyFactory
 import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciDriverFamilyFactory
@@ -28,5 +29,6 @@ fun defaultDriverFamilyRegistry(): DriverFamilyRegistry = DriverFamilyRegistry(
         TpLinkStokLuciDriverFamilyFactory(),
         TpLinkGdprCgiDriverFamilyFactory(),
         TpLinkXdrDsDriverFamilyFactory(),
+        NokiaGponDriverFamilyFactory(),
     ),
 )

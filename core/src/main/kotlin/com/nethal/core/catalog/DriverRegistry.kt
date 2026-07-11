@@ -124,7 +124,7 @@ class DefaultDriverRegistry(
  * presa a `DefaultDriverRegistry`) para o registry poder ser testado com um manifesto de teste
  * sem depender do classpath de recursos real.
  */
-fun loadEmbeddedCatalogResource(resourceName: String = "catalog/catalog-2026.07.24.json"): String {
+fun loadEmbeddedCatalogResource(resourceName: String = "catalog/catalog-2026.07.25.json"): String {
     val stream = object {}.javaClass.classLoader?.getResourceAsStream(resourceName)
         ?: error("Recurso de catálogo embarcado não encontrado: $resourceName")
     return stream.bufferedReader(Charsets.UTF_8).use { it.readText() }

@@ -1,0 +1,805 @@
+{
+  "$schema": "https://nethal.dev/schema/compatibility-catalog-v1.json",
+  "manifestVersion": "2026.07.25",
+  "generatedAt": "2026-07-10T00:00:00Z",
+  "generatedBy": "bruno-dev-nethal",
+  "previousManifest": "catalog-2026.07.24.json",
+  "profiles": [
+    {
+      "profileId": "nokia_g1425gb_v1",
+      "vendor": "Nokia",
+      "model": "G-1425G-B",
+      "deviceType": "ONT",
+      "productLine": "Nokia GPON RGW (Shanghai Bell / ex-Alcatel-Lucent)",
+      "platformId": "nokia-gpon-rsa-aes",
+      "driverFamilyId": "nokia-ont-gpon-driver",
+      "driverConfig": {
+        "gponStatusPath": "/wan_status.cgi?gpon",
+        "wanStatusPath": "/show_wan_status.cgi?ipv4",
+        "pppStatusPath": "/index.cgi?getppp",
+        "deviceInfoPath": "/device_status.cgi",
+        "connectedClientsPath": "/lan_status.cgi?wlan"
+      },
+      "firmwareKnown": [
+        "3FE49568IJJJ09 (softwareVersion) / 3FE49937ADAA (hardwareVersion)"
+      ],
+      "stage": "READ_ONLY_ALPHA",
+      "stageReason": "Mantido em READ_ONLY_ALPHA (decisão intencional de não decidir promoção/rebaixamento sozinho — ver knownFirmwareBugs desta rodada). Causa raiz da falha de leitura registrada na rodada anterior foi encontrada e corrigida: bug real de código em `DefaultHttpTransport.parseCookies` (componente compartilhado, não específico deste profile) — cookies além do primeiro num header `Set-Cookie` combinado eram descartados, e a busca do header era sensível a maiúsculas/minúsculas. Corrigido com 4 testes de regressão contra servidor HTTP local, sem martelar o equipamento real. NÃO validado ainda contra o hardware físico — capabilities[]/confidenceScoreOverall permanecem inalterados até confirmação por nova execução real do `nokiaManualCheck`; decisão de ajustá-los, se a leitura continuar falhando por outro motivo, é de Rafael, não deste manifesto. Ver manifesto 2026.07.10 para o histórico completo da promoção DRAFT → DISCOVERY_ONLY → READ_ONLY_ALPHA.",
+      "physicalTestAccess": true,
+      "physicalTestAccessNote": "Inalterado — ver manifesto 2026.07.10.",
+      "managementDefaults": {
+        "candidateIps": [
+          "192.168.1.254",
+          "192.168.254.254"
+        ],
+        "ipConfidence": 0.55,
+        "ipConfidenceNote": "Inalterado.",
+        "managementPort": 80,
+        "managementPortNote": "Inalterado."
+      },
+      "credentialConvention": {
+        "defaultUser": null,
+        "defaultPasswordPattern": null,
+        "confidence": 0.0,
+        "confidenceNote": "Inalterado.",
+        "policyNote": "Não há credencial padrão a documentar. O NetHAL nunca deve tentar login automático."
+      },
+      "fingerprintEvidence": [
+        {
+          "type": "auth_mechanism",
+          "value": "Handshake de login: GET na raiz extrai `pubkey` (RSA, SubjectPublicKeyInfo/X.509 base64 dentro de `var pubkey = '...'`), `nonce` (`var nonce = \"...\"`) e `csrf_token` (`var token = \"...\"`) do HTML. Cliente gera 4 valores aleatórios de 16 bytes (aesKey, iv, decKey, decIv), monta payload `&username=...&password=...&csrf_token=...&nonce=...&enckey=...&enciv=...`, cifra com AES-CBC padding ISO/IEC 7816-4 (0x80 + zeros, NÃO PKCS5/PKCS7) usando aesKey/iv → `ct` (base64url sem padding). Cifra `\"base64(aesKey) base64(iv)\"` com RSA-PKCS#1v1.5 usando a pubkey extraída → `ck` (base64url-escape, `=`→`.`). POST `/login.cgi` com body `encrypted=1&ct=...&ck=...`. Sessão retorna via header `X-SID` ou cookie `sid`.",
+          "confidence": 0.95,
+          "confidenceLevel": "HIGH",
+          "source": "Código-fonte real do driver de produção do SignallQ (evidência original), confirmado por duas execuções reais do `nokiaManualCheck` (SIG-333).",
+          "note": "Inalterado desta rodada — ver manifesto 2026.07.10 para detalhe completo."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "Falha de login sinalizada via `err_t` no corpo da resposta: err_t=0 → sessão já em uso por outro acesso; err_t=1 → credenciais inválidas; err_t=2 → token expirado (nonce/csrf precisam ser recapturados, retry do zero).",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "source": "NokiaModemClient.kt, bloco de tratamento de erro pós-POST /login.cgi (driver de produção do SignallQ).",
+          "note": "Inalterado."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": [
+            "/wan_status.cgi?gpon",
+            "/show_wan_status.cgi?ipv4",
+            "/index.cgi?getppp",
+            "/device_status.cgi"
+          ],
+          "confidence": 0.95,
+          "confidenceLevel": "HIGH",
+          "source": "ExecutorFibra.kt (driver de produção do SignallQ), confirmado por duas execuções reais.",
+          "note": "Inalterado."
+        },
+        {
+          "type": "session_behavior",
+          "value": "Timeouts: connect 15s / read 30s em GET, read 60s em POST. Retry: até 3 tentativas com backoff 1s/2s entre tentativas subsequentes. Cookies de sessão (`sid`, `lsid`, `lang`) e header `X-SID` reenviados em cada request subsequente; redirecionamentos HTTP seguidos manualmente (até 5 hops) para preservar `Set-Cookie` de cada hop.",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "source": "NokiaModemClient.kt e ExecutorFibra.kt (driver de produção do SignallQ).",
+          "note": "Inalterado."
+        },
+        {
+          "type": "html_title",
+          "value": "GPON Home Gateway",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "source": "Probe passivo real: GET não autenticado na raiz (`/`) da unidade física G-1425G-B do Luiz.",
+          "note": "Reconfirmado em 2026-07-08 (terceira execução real do `nokiaManualCheck`, contra o host 192.168.1.254, credencial fornecida fora de banda pelo Luiz): a tela pós-login segue com o mesmo título \"GPON Home Gateway\" já registrado. Não é evidência de unidade física distinta — é o mesmo host já coberto por `managementDefaults.candidateIps`."
+        },
+        {
+          "type": "http_headers",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Probe passivo real: mesmo GET não autenticado na raiz (`/`). O header `Server` foi verificado e está genuinamente ausente.",
+          "note": "Reconfirmado em 2026-07-08 (mesma execução da evidência acima): header `Server` continua ausente na resposta pós-login."
+        }
+      ],
+      "expectedProtocols": [
+        {
+          "protocol": "HTTP_LOCAL_WEBUI",
+          "detectionState": "SUPPORTED",
+          "note": "Inalterado."
+        },
+        {
+          "protocol": "TR-069_CWMP",
+          "detectionState": "UNKNOWN",
+          "note": "Inalterado — fingerprint passivo apenas, nunca canal de ação local."
+        },
+        {
+          "protocol": "UPNP_IGD",
+          "detectionState": "UNKNOWN",
+          "note": "Inalterado."
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "READ_DEVICE_INFO",
+          "state": "AVAILABLE",
+          "reason": "Reconfirmado, sem mudança nesta rodada — ver manifesto 2026.07.10."
+        },
+        {
+          "id": "READ_WAN_STATUS",
+          "state": "AVAILABLE",
+          "reason": "Reconfirmado, sem mudança nesta rodada."
+        },
+        {
+          "id": "READ_SIGNAL",
+          "state": "AVAILABLE",
+          "reason": "Reconfirmado, sem mudança nesta rodada."
+        },
+        {
+          "id": "READ_UPTIME",
+          "state": "AVAILABLE",
+          "reason": "Reconfirmado, sem mudança nesta rodada."
+        },
+        {
+          "id": "READ_FIRMWARE",
+          "state": "AVAILABLE",
+          "reason": "Reconfirmado, sem mudança nesta rodada."
+        }
+      ],
+      "knownFirmwareBugs": [
+        {
+          "description": "Firmware expõe o campo de tensão de alimentação do transceptor óptico com typo real: `SupplyVottage` (em vez de `SupplyVoltage`) em pelo menos parte do parque testado pelo SignallQ. O parser precisa aceitar os dois nomes de campo.",
+          "confidence": 0.8,
+          "source": "NokiaModemParser.kt do driver de produção do SignallQ."
+        },
+        {
+          "description": "Alguns firmwares desta família reportam potência óptica de RX sem o sinal negativo (ex.: retornam '22.7' em vez de '-22.7' dBm) — necessário normalizar valores no range plausível (1–60) para negativo.",
+          "confidence": 0.6,
+          "source": "NokiaModemParser.kt do driver de produção do SignallQ."
+        },
+        {
+          "description": "2026-07-08: terceira execução real do `nokiaManualCheck` (login bem-sucedido, sessão aberta via X-SID/sid) teve os 5 endpoints de leitura (`/device_status.cgi`, `/wan_status.cgi?gpon`, `/show_wan_status.cgi?ipv4`, `/index.cgi?getppp`, `/lan_status.cgi?wlan`) retornando corpo que `NokiaResponseParser` não conseguiu interpretar (todos os campos vieram em branco/zerados, não valores reais de sinal ausente). Contradiz as duas execuções anteriores registradas nesta mesma seção de evidência, que tinham sucesso de leitura nos mesmos endpoints. Causa raiz NÃO confirmada — candidatos ainda em aberto: (a) variante/atualização de firmware desde a última execução bem-sucedida; (b) sessão/cookie rejeitados pelo equipamento apesar do login retornar `sid`/`X-SID` válido (o corpo de erro observado em probe passivo anterior para `/device_status.cgi` sem sessão — \"Bad request for invalid parameter in the coookie\" — é indistinguível de uma resposta de sessão rejeitada); (c) efeito da leitura de senha via fallback `readlnOrNull()` em vez de `System.console().readPassword()` (a execução rodou via Gradle Daemon, sem console interativo). Diagnóstico bruto ainda pendente — `ManualCheckRunner.runNokia` foi atualizado para imprimir o corpo bruto de cada endpoint lado a lado com o resultado do parser, sem nunca imprimir senha ou token de sessão; requer nova execução real para confirmar a causa antes de qualquer correção de parser ou mudança de `stage`/`capabilities`/`confidenceScoreOverall` deste profile.",
+          "confidence": 0.3,
+          "source": "Execução real de `gradlew :core:nokiaManualCheck --args=\"192.168.1.254 admin\"` pelo Luiz em 2026-07-08, relatada via coordenação do squad (Diego não teve acesso à senha nem à sessão em nenhum momento)."
+        },
+        {
+          "description": "CORREÇÃO (2026-07-08, mesmo dia): a entrada acima registrava causa raiz não confirmada. Uma segunda execução com o logging bruto (`ManualCheckRunner.runNokia` atualizado) mostrou que os 5 endpoints de leitura devolveram o MESMO corpo de erro `<script>var Errorinfo =\"Bad request for invalid parameter in the coookie.\";window.location.replace('/');</script>` já documentado na primeira evidência acima (probe sem sessão nenhuma) — ou seja, o servidor tratava as leituras pós-login como não-autenticadas. **Isso NÃO é variante/bug de firmware** — é um bug real no código do NetHAL, em `core/src/main/kotlin/com/nethal/core/protocol/http/HttpTransport.kt` (`DefaultHttpTransport.parseCookies`), componente compartilhado por todos os drivers HTTP (não exclusivo do Nokia). Dois defeitos concretos, achados via teste com servidor HTTP local (`com.sun.net.httpserver.HttpServer`), sem martelar o equipamento real: (1) o parser só lia o primeiro par `nome=valor` de cada header `Set-Cookie` — este firmware empacota vários cookies (`sid`, `lsid`, `lang`) num único header `Set-Cookie`, então cookies além do primeiro eram descartados silenciosamente (ex.: `lsid` nunca era capturado nem reenviado, e o equipamento parece exigi-lo junto de `sid` para aceitar a sessão); (2) a busca do header usava a chave exata `\"Set-Cookie\"` no Map de `HttpURLConnection.headerFields`, que é sensível a maiúsculas/minúsculas — nomes de header HTTP são case-insensitive por RFC 7230, e essa busca exata já quebrou contra pelo menos um servidor de teste real. Corrigidos os dois na mesma função, com 4 testes de regressão novos (`DefaultHttpTransportTest`, incluindo um caso que reproduz literalmente o header `Set-Cookie` capturado ao vivo do Nokia). Ambas as correções são genéricas (não específicas de Nokia) — TP-Link e qualquer outro driver que passe por `DefaultHttpTransport` também se beneficiam/podem ter sido afetados. NÃO validado ainda contra o equipamento físico (evitando martelar a unidade real); pendente de confirmação na próxima execução real do `nokiaManualCheck`.",
+          "confidence": 0.75,
+          "source": "Leitura de código (`NokiaAuthenticationClient.authenticatedHeaders`, `DefaultHttpTransport.parseCookies`) + reprodução determinística via `core/src/test/kotlin/com/nethal/core/protocol/http/DefaultHttpTransportTest.kt` contra servidor HTTP local simulando o header real capturado do Nokia G-1425G-B. Ver `docs/drivers/compatibility-catalog.md`, changelog 2026-07-08."
+        },
+        {
+          "description": "VERIFICAÇÃO (2026-07-08/09, mesmo dia): hipótese adicional levantada a partir de um levantamento irmão no SignallQ (`docs_ai/technical/NOKIA_GPON_FIELD_MAP.md`, replicação em Node.js do mesmo handshake) — o sucesso de `/login.cgi` responde HTTP **299**, não 200, e a checagem de sucesso em algum ponto do código poderia estar restrita a 200. Checado: `NokiaAuthenticationClient.login` (linha `if ((response.statusCode == 299 || response.statusCode == 200) && resolvedSessionId.isNotEmpty())`) já tratava 299 explicitamente desde a implementação original — não era um branch novo. Adicionado teste de regressão (`DefaultHttpTransportTest`, 5º caso) confirmando que `HttpURLConnection`/`DefaultHttpTransport.post` reportam `statusCode=299` corretamente e capturam `X-SID`/`Set-Cookie` de uma resposta 299 sem exceção nem truncamento — confirma que a camada de transporte também já lida bem com esse código não-padrão. **Nenhum bug adicional encontrado neste eixo** — a suspeita não se confirmou como causa remanescente. Também conferida a codificação `base64_custom_escape` (`+`→`-`, `/`→`_`, `=`→`.`) usada no parâmetro `ck`: `NokiaAuthCrypto.base64UrlEscape` já implementa exatamente essa troca de caracteres, sem divergência. O mesmo doc (item 5, esquema de autenticação) descreve que leituras GET pós-login dependem dos cookies `lang`/`sid`/`lsid` — corrobora, de fonte independente, a correção de `parseCookies` já registrada na entrada anterior (não é uma correção nova, é confirmação externa da mesma).",
+          "confidence": 0.7,
+          "source": "Leitura de `NokiaAuthenticationClient.kt`/`NokiaAuthCrypto.kt` linha a linha + teste de regressão novo em `DefaultHttpTransportTest.kt` (status 299) + `C:\\Projetos\\SignallQ\\docs_ai\\technical\\NOKIA_GPON_FIELD_MAP.md` (seção \"Referência técnica — esquema de autenticação da UI\", levantamento de outro produto da mesma empresa contra a mesma família de firmware, usado só como referência de comparação — nenhum trecho copiado literalmente para o driver)."
+        }
+      ],
+      "operatorProvisioningRisk": {
+        "risk": "HIGH",
+        "note": "ONT de operadora (perfil CPE-ISP), inalterado — driver continua só leitura."
+      },
+      "confidenceScoreOverall": 0.9,
+      "confidenceScoreOverallNote": "Inalterado nesta rodada (0.9) — nenhuma nova execução real deste profile. Ver manifesto 2026.07.10 para o cálculo completo."
+    },
+    {
+      "profileId": "tplink_archer_c6_v1",
+      "vendor": "TP-Link",
+      "model": "Archer C6",
+      "deviceType": "ROUTER",
+      "productLine": "TP-Link Archer (AC1200 dual-band)",
+      "platformId": "tplink-encrypted-web",
+      "driverFamilyId": "tplink-encrypted-web-driver",
+      "firmwareKnown": [
+        "v2.x (hardware v2)",
+        "v4.0 (hardware v4)"
+      ],
+      "stage": "DRAFT",
+      "stageReason": "Inalterado nesta rodada quanto ao estágio em si (continua DRAFT, nenhuma capability confirmada). IMPORTANTE — segunda rodada de evidência negativa (2026-07-07): a tentativa real de `tplinkManualCheck` do dia anterior havia sido descartada por engano de modelo (equipamento testado era um Archer C20, não um C6). Nesta rodada, o Luiz testou a unidade física correta (Archer C6 real, recém resetada de fábrica, IP 192.168.0.1) e `POST /cgi/getParm` — o endpoint que este profile assume como ponto de entrada do handshake RSA — devolveu HTTP 404: o endpoint simplesmente não existe neste firmware. Isso É evidência negativa válida contra a hipótese \"web encrypted password\" para esta unidade/firmware específico (ver `fingerprintEvidence[]` tipo `auth_mechanism` com `confidenceLevel: REFUTED` adicionado nesta rodada, e `knownFirmwareBugs[]`). Investigação subsequente (probes passivos reais contra a mesma unidade, mais pesquisa comunitária) revelou que esse Archer C6 real roda um mecanismo de login completamente diferente (`stok`/luci, ver profile novo `tplink_archer_c6_stok_v1` criado nesta mesma rodada) — a TP-Link migrou parte da linha Archer C6 para esse mecanismo em gerações de firmware mais novas. Este profile (`tplink_archer_c6_v1`, mecanismo antigo) permanece em `DRAFT`, sem capability confirmada — ele descreve uma plataforma de firmware que ainda pode existir em unidades mais antigas da mesma linha comercial, só não é a que o Luiz tem em mãos hoje.",
+      "physicalTestAccess": true,
+      "physicalTestAccessNote": "Revisado nesta rodada (2026-07-07): o Luiz confirmou acesso físico real a uma unidade Archer C6 (recém resetada de fábrica, IP 192.168.0.1) — `physicalTestAccess` volta a `true`. Porém o teste real contra essa unidade refutou o mecanismo que este profile descreve (`POST /cgi/getParm` → HTTP 404); a unidade física real roda a plataforma \"stok/luci\", documentada no profile novo `tplink_archer_c6_stok_v1`. Este profile (`tplink_archer_c6_v1`) continua sem nenhuma unidade física confirmada rodando especificamente o mecanismo \"web encrypted password\" que ele descreve — `physicalTestAccess: true` reflete acesso à linha comercial Archer C6 em geral, não a este mecanismo de firmware específico.",
+      "managementDefaults": {
+        "candidateIps": [
+          "192.168.0.1",
+          "192.168.1.1",
+          "tplinkwifi.net"
+        ],
+        "ipConfidence": 0.85,
+        "ipConfidenceNote": "Inalterado.",
+        "managementPort": 80,
+        "managementPortNote": "Inalterado."
+      },
+      "credentialConvention": {
+        "defaultUser": null,
+        "defaultPasswordPattern": "Definida pelo usuário no primeiro setup (sem usuário/senha de fábrica fixos em hardware v4; hardware v2 mais antigo podia usar admin/admin)",
+        "confidence": 0.6,
+        "confidenceNote": "Inalterado.",
+        "policyNote": "Sem tentativa automática de login em nenhum caso — mesma regra do Nokia."
+      },
+      "fingerprintEvidence": [
+        {
+          "type": "html_title",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Inalterado — ver manifesto 2026.07.10.",
+          "note": "Inalterado."
+        },
+        {
+          "type": "http_headers",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Inalterado.",
+          "note": "Inalterado."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "Handshake \"web encrypted password\" implementado em `TplinkAuthenticationClient`/`TplinkAuthCrypto`: POST `/cgi/getParm` → RSA `ee`/`nn`/`seq`; envelope `sign` RSA sem padding; corpo de login cifrado com AES (CBC/GCM); POST `/cgi_gdpr`. Ver manifesto 2026.07.10 para o detalhe completo do handshake.",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM_HIGH",
+          "source": "Pesquisa de segurança independente de terceiros: Hex Fish, \"TP-Link's Attempt at GDPR Compliance\" (https://hex.fish/2021/05/10/tp-link-gdpr/) e a PoC associada `0xf15h/tp_link_gdpr`.",
+          "note": "Confidence mantida em 0.7 (não recalculado para baixo) porque a evidência negativa de 2026-07-07 (ver entrada REFUTED abaixo) refuta o mecanismo especificamente para a unidade física testada do Luiz, não a hipótese em geral para toda a linha Archer C6 — pode existir hardware/firmware mais antigo da mesma linha comercial que ainda use este mecanismo. Continua sem nenhuma confirmação real POSITIVA contra qualquer unidade C6."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "REFUTADO por teste real em 2026-07-07 contra a unidade física do Luiz (Archer C6, recém resetada de fábrica, IP 192.168.0.1): `POST /cgi/getParm` — o endpoint que este mecanismo assume como ponto de entrada para buscar os parâmetros RSA (`ee`/`nn`/`seq`) — devolveu HTTP 404 Not Found. O endpoint simplesmente não existe neste firmware. Investigação subsequente (probes passivos reais sem credencial, mais pesquisa comunitária) confirmou que esta unidade roda um mecanismo de login completamente diferente, do tipo `stok`/luci (ver profile novo `tplink_archer_c6_stok_v1`). A pesquisa da comunidade (pacote `tplinkrouterc6u`, sucessor de `AlexandrErohin/TP-Link-Archer-C6U`) documenta explicitamente duas gerações de mecanismo de login para o mesmo hardware Archer C6/C6U: a antiga (\"Web Encrypted Password\", a que este profile descreve) e uma nova via `/cgi-bin/luci/;stok=.../login`, com uma issue aberta no repositório afirmando que \"firmwares mais novos não suportam mais Web Encrypted Password\".",
+          "confidence": 0.0,
+          "confidenceLevel": "REFUTED",
+          "source": "Execução real (probe HTTP direto, sem credencial) contra a unidade física do Luiz, 2026-07-07 — `POST /cgi/getParm` → HTTP 404. Pesquisa complementar (WebSearch): https://github.com/AlexandrErohin/TP-Link-Archer-C6U , https://pypi.org/project/tplinkrouterc6u/ , https://github.com/AlexandrErohin/home-assistant-tplink-router/issues/31 .",
+          "note": "Mantido no catálogo como histórico de descarte específico desta unidade/geração de firmware — não invalida o profile inteiro, porque pode existir hardware Archer C6 mais antigo (v2/v4 citado em `firmwareKnown`) que ainda exponha `/cgi/getParm`. Não reintroduzir esta hipótese como caminho de autenticação para a unidade física real do Luiz; usar o profile `tplink_archer_c6_stok_v1` para essa unidade."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": "Endpoints de leitura pós-login assumidos por analogia com outros drivers de WebUI doméstica já implementados neste projeto (Nokia), NÃO confirmados para o Archer C6: `/cgi/getDeviceInfo`, `/cgi/getWanStatus`, `/cgi/getWifiStatus`, `/cgi/getConnectedClients`.",
+          "confidence": 0.15,
+          "confidenceLevel": "LOW",
+          "source": "Hipótese de trabalho de Diego.",
+          "note": "Inalterado."
+        },
+        {
+          "type": "session_behavior",
+          "value": "WebUI aceita apenas uma sessão autenticada simultânea — deixar o painel aberto no navegador pode causar falha de login por outro cliente",
+          "confidence": 0.55,
+          "confidenceLevel": "MEDIUM",
+          "source": "Padrão documentado de forma consistente na pesquisa anterior para a família TP-Link Archer em geral.",
+          "note": "Inalterado."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": [
+            "Quick Setup",
+            "Basic (status/wireless/network map)",
+            "Advanced (wireless, network, security, USB, IPv6, etc.)",
+            "AP Quick Setup (modo access point)",
+            "Settings"
+          ],
+          "confidence": 0.6,
+          "confidenceLevel": "MEDIUM",
+          "source": "Emulador oficial do fabricante, https://emulator.tp-link.com/c6-us-v2/index.html.",
+          "note": "Inalterado."
+        },
+        {
+          "type": "vendor_app_reference",
+          "value": "Aplicativo companion 'TP-Link Tether' referenciado no WebUI (links iTunes/Google Play)",
+          "confidence": 0.8,
+          "confidenceLevel": "HIGH",
+          "source": "Confirmado diretamente no HTML navegável do emulador oficial.",
+          "note": "Inalterado."
+        }
+      ],
+      "expectedProtocols": [
+        {
+          "protocol": "HTTP_LOCAL_WEBUI",
+          "detectionState": "SUPPORTED",
+          "note": "Inalterado."
+        },
+        {
+          "protocol": "HTTPS_LOCAL_WEBUI",
+          "detectionState": "REQUIRES_AUTH",
+          "note": "Inalterado."
+        },
+        {
+          "protocol": "TR-069_CWMP",
+          "detectionState": "UNKNOWN",
+          "note": "Inalterado."
+        },
+        {
+          "protocol": "UPNP_IGD",
+          "detectionState": "UNKNOWN",
+          "note": "Inalterado."
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "READ_DEVICE_INFO",
+          "state": "UNKNOWN",
+          "reason": "Sem teste real ainda contra um Archer C6 de verdade; driver em DRAFT."
+        },
+        {
+          "id": "READ_WAN_STATUS",
+          "state": "UNKNOWN",
+          "reason": "Sem teste real ainda; driver em DRAFT."
+        },
+        {
+          "id": "READ_WIFI_STATUS",
+          "state": "UNKNOWN",
+          "reason": "Sem teste real ainda; driver em DRAFT."
+        },
+        {
+          "id": "READ_CONNECTED_CLIENTS",
+          "state": "UNKNOWN",
+          "reason": "Sem teste real ainda; driver em DRAFT."
+        },
+        {
+          "id": "READ_FIRMWARE",
+          "state": "UNKNOWN",
+          "reason": "Sem teste real ainda; driver em DRAFT."
+        },
+        {
+          "id": "REBOOT_DEVICE",
+          "state": "UNKNOWN",
+          "reason": "Sem teste real ainda; driver em DRAFT."
+        }
+      ],
+      "knownFirmwareBugs": [
+        {
+          "description": "Atualizações de firmware podem quebrar compatibilidade de integrações não oficiais (mudança de esquema de criptografia de senha, endpoints internos) sem aviso prévio ao usuário final.",
+          "confidence": 0.6,
+          "source": "Observação recorrente do maintainer do projeto comunitário TP-Link-Archer-C6U."
+        },
+        {
+          "description": "A pesquisa de segurança independente (Hex Fish / `0xf15h/tp_link_gdpr`) documenta fraquezas criptográficas conhecidas do próprio firmware (RSA sem padding determinístico, geração fraca de chave/IV AES em parte do parque de terceiros). O NetHAL replica o protocolo como o firmware o expõe.",
+          "confidence": 0.55,
+          "source": "Hex Fish, \"TP-Link's Attempt at GDPR Compliance\"."
+        },
+        {
+          "description": "CONFIRMADO por teste real em 2026-07-07: pelo menos uma geração de firmware da linha Archer C6 abandona completamente o mecanismo \"Web Encrypted Password\" (`/cgi/getParm` + `/cgi_gdpr`) em favor de um mecanismo `stok`/luci diferente (`/cgi-bin/luci/;stok=.../login`) — `/cgi/getParm` devolve HTTP 404 nessa geração, não um erro de credencial ou de sessão. Não é bug de configuração do usuário, é divergência real de plataforma entre firmwares do mesmo modelo comercial. A comunidade (`tplinkrouterc6u`, sucessor de `AlexandrErohin/TP-Link-Archer-C6U`) documenta isso como uma migração deliberada de mecanismo pela TP-Link, não uma falha pontual.",
+          "confidence": 0.9,
+          "source": "Probe real (sem credencial) contra a unidade física do Luiz, 2026-07-07, mais https://github.com/AlexandrErohin/home-assistant-tplink-router/issues/31 ."
+        }
+      ],
+      "operatorProvisioningRisk": {
+        "risk": "LOW",
+        "note": "Roteador de varejo, não gerenciado por ACS de operadora na configuração padrão."
+      },
+      "confidenceScoreOverall": 0.35,
+      "confidenceScoreOverallNote": "Baixado de 0.4 para 0.35 nesta rodada (2026-07-07). Motivo: a categoria 'autenticação bem-sucedida testada no modo esperado' (0,20 do teto) não pode mais contribuir absolutamente nada em cenário otimista — a única execução real contra hardware físico do mecanismo que este profile descreve terminou em refutação (`POST /cgi/getParm` → HTTP 404), não em sucesso nem em ausência de teste. Mantido acima de zero porque a hipótese de mecanismo ainda é documentalmente plausível para hardware/firmware mais antigo da mesma linha comercial (v2/v4, ver `firmwareKnown`) que a unidade real do Luiz não representa. Continua precisando de execução real bem-sucedida contra uma unidade que genuinamente rode este mecanismo para qualquer promoção de estágio — o que não vai acontecer com a unidade física atual do Luiz, que roda a plataforma `tplink-stok-luci` (ver profile `tplink_archer_c6_stok_v1`)."
+    },
+    {
+      "profileId": "tplink_archer_c6_stok_v1",
+      "vendor": "TP-Link",
+      "model": "Archer C6",
+      "deviceType": "ROUTER",
+      "productLine": "TP-Link Archer (AC1200 dual-band) — geração de firmware com login stok/luci",
+      "platformId": "tplink-stok-luci",
+      "driverFamilyId": "tplink-stok-luci-driver",
+      "driverConfig": {
+        "statusReadPath": "admin/status",
+        "statusReadQuery": "form=all&operation=read"
+      },
+      "firmwareKnown": [
+        "1.1.10 Build 20230830 rel.69433(5553) (hardware Archer C6 v2.0)"
+      ],
+      "stage": "READ_ONLY_ALPHA",
+      "stageReason": "CORRECAO DE CONSISTENCIA pos-validacao real: a rodada documentada neste manifesto terminava ainda em expectativa de um novo teste, mas a evidência viva consolidada depois no repositório confirmou o que faltava para o criterio `DISCOVERY_ONLY -> READ_ONLY_ALPHA`: login real bem-sucedido + leitura autenticada real de `admin/status?form=all` contra a unidade física do Luiz (Archer C6 v2.0, firmware `1.1.10 Build 20230830 rel.69433(5553)`) em 2026-07-07. O envelope final alinhado com o hardware ficou: duas chaves RSA distintas (`form=keys` para senha 1024-bit, `form=auth` para `sign` 512-bit), `data` com `operation=login&password=<rsa1024_hex>` sem `&confirm=true`, `k=`/`i=` como strings decimais ASCII de 16 digitos usadas diretamente como bytes AES-128, `s=seq+comprimentoBase64(data)` e `h=md5(username+password)` confirmado pela captura do `sign` real (`f6fdffe48c908deb0f4c3bd36c032e72` para a credencial real validada). ATUALIZACAO (2026-07-07, mesma rodada de evidência): `TpLinkStokLuciStatusParser` foi adicionado e agora mapeia o corpo de `admin/status?form=all` para o vocabulário de capabilities (`READ_WIFI_STATUS`, `READ_LAN_STATUS`, `READ_WAN_STATUS`, `READ_CONNECTED_CLIENTS`), com SSID virando hash SHA-256, MAC sempre mascarado e a senha do Wi-Fi (`*_psk_key`) nunca lida — mesma sanitização da spec §8.9. O profile PERMANECE em `READ_ONLY_ALPHA`: (1) o parser foi validado só por testes unitários com nomes de campo relatados de uma sessão de teste manual anterior, não recapturados/reconfirmados byte a byte nesta rodada; (2) `DriverFamily.readCapability(id)` (a assinatura pública sem parâmetro de credencial) continua retornando `Unavailable` para todo `CapabilityId` — não existe Capability Engine gerenciando sessão ainda, então o dado estruturado só é alcançável via `readSnapshot(username, password)` direto; (3) a promoção para `READ_ONLY_BETA` exige revisão de telemetria da Marisa (`/ciclo-vida-driver`), ainda não feita para este profile.",
+      "physicalTestAccess": true,
+      "physicalTestAccessNote": "Mesma unidade física do Luiz usada nas rodadas anteriores — Archer C6 v2.0 real, firmware confirmado `1.1.10 Build 20230830 rel.69433(5553)`, IP 192.168.0.1. Nesta rodada, evidência via captura byte a byte de ferramenta externa (Codex, não Claude Code) contra o mesmo hardware/firmware confirmou a causa raiz provável da falha `INVALID_CREDENTIALS`/HTTP 403 persistente: a chave/IV AES não são bytes binários aleatórios hex-encodados, são strings de 16 dígitos decimais ASCII usadas diretamente como bytes (variante `EncryptionWrapperMR`).",
+      "managementDefaults": {
+        "candidateIps": [
+          "192.168.0.1",
+          "192.168.1.1",
+          "tplinkwifi.net"
+        ],
+        "ipConfidence": 0.95,
+        "ipConfidenceNote": "192.168.0.1 confirmado como IP real de gestão desta unidade física específica (probe direto, 2026-07-07), reforçando a mesma convenção já documentada para a linha Archer em geral.",
+        "managementPort": 80,
+        "managementPortNote": "HTTP confirmado real por probe direto (`GET /` respondeu HTTP 200) contra a unidade física, 2026-07-07. HTTPS local não investigado nesta rodada."
+      },
+      "credentialConvention": {
+        "defaultUser": null,
+        "defaultPasswordPattern": "Definida pelo usuário no primeiro setup — este firmware autentica só por senha (nenhum formulário de login capturado tem campo de usuário, confirmado também pela ausência de campo de usuário em qualquer chamada do fluxo de login real capturado ao vivo, incluindo a captura completa via Playwright desta rodada), diferente da convenção usuário+senha do mecanismo antigo.",
+        "confidence": 0.85,
+        "confidenceNote": "Confirmado por probe real (quatro formulários de `/webpages/login.html` só com campo `password`) E agora reforçado por duas rodadas de login real bem-sucedido ao vivo, nenhuma delas com campo de usuário em qualquer chamada.",
+        "policyNote": "Sem tentativa automática de login em nenhum caso — mesma regra de todo o NetHAL."
+      },
+      "fingerprintEvidence": [
+        {
+          "type": "auth_mechanism",
+          "value": "`POST /cgi/getParm` (endpoint que o profile `tplink_archer_c6_v1`, mecanismo antigo, assume para buscar parâmetros RSA) devolveu HTTP 404 Not Found contra esta unidade — controle negativo que motivou a investigação desta plataforma nova.",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "source": "Probe real (sem credencial) contra 192.168.0.1, 2026-07-07.",
+          "note": "Evidência principal de que esta unidade não usa o mecanismo 'web encrypted password' do profile irmão `tplink_archer_c6_v1`."
+        },
+        {
+          "type": "http_headers",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Probe real (sem credencial): `GET /` contra 192.168.0.1, 2026-07-07 — HTTP 200, sem header `Server` (ausente), `Content-Type: text/html`, sem `WWW-Authenticate`.",
+          "note": "Valor fica `null` porque o header `Server` está genuinamente ausente na resposta, não porque não foi capturado — mesma convenção usada no profile Nokia para header ausente confirmado."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": [
+            "/webpages/login.html",
+            "/cgi-bin/luci"
+          ],
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "source": "Probe real (sem credencial) contra 192.168.0.1, 2026-07-07: `GET /` retorna HTML com `<meta http-equiv=\"refresh\" content=\"0; URL=/webpages/login.html\" />`; `GET /webpages/login.html` retorna HTTP 200 com título genérico `<title>Opening...</title>` e quatro formulários (`form-first-login`, `form-login`, `form-login-bind`, `form-forget-password`), todos com `action=\"/cgi-bin/luci\"`.",
+          "note": "Título HTML genérico (`Opening...`) não é útil como fingerprint sozinho — o valor de fingerprint real está na estrutura de path (`/webpages/login.html` → `/cgi-bin/luci`), não no título."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "Nenhum formulário de login capturado tem campo de usuário — só campo `password`. Este firmware autentica só por senha, sem usuário, diferente do mecanismo do profile irmão `tplink_archer_c6_v1` (que assume usuário+senha).",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "source": "Probe real (sem credencial): inspeção do HTML de `/webpages/login.html`, 2026-07-07.",
+          "note": "Confirma que este não é apenas uma variação de endpoint do mesmo mecanismo — o modelo de credencial em si é diferente."
+        },
+        {
+          "type": "vendor_class_reference",
+          "value": "REFUTADO por evidência ao vivo em 2026-07-07 (segunda rodada): a hipótese assumida a partir só da leitura do pacote Python `tplinkrouterc6u` — duas chamadas de preparação separadas (`form=keys` para chave RSA de senha, `form=auth` para chave RSA de assinatura + sequência) e corpo de login `operation=login&password=<hex_cifrado>&confirm=true` — foi testada contra o hardware real (`gradlew :core:tplinkC6StokManualCheck`) e falhou com `INVALID_CREDENTIALS` (HTTP 403) mesmo com senha correta. Login real bem-sucedido capturado ao vivo na segunda rodada (interceptação de `XMLHttpRequest` na própria página, via extensão Chrome) pareceu mostrar apenas UMA chamada de preparação (`form=auth`). **CORREÇÃO NA TERCEIRA RODADA (evidência definitiva via Playwright)**: essa aparência de \"uma única chamada\" era artefato de uma captura incompleta — a extensão Chrome pulou a chamada `form=keys` por algum motivo de cache/estado do navegador naquela tentativa específica. A captura completa via Playwright (`page.on('response')`, corpo de request+response completo) confirma que a hipótese original de DUAS chamadas de preparação com DUAS chaves RSA distintas estava correta o tempo todo — só a FORMA exata do corpo de login (`&confirm=true` presente vs. ausente, senha em texto puro vs. RSA-hex) é que estava errada na hipótese original. Ver evidência `auth_mechanism` mais recente abaixo (`Protocolo real confirmado por evidência ao vivo DEFINITIVA via Playwright`) para o detalhe corrigido e definitivo.",
+          "confidence": 0.0,
+          "confidenceLevel": "REFUTED",
+          "source": "Execução real (`gradlew :core:tplinkC6StokManualCheck`) contra a unidade física do Luiz, 2026-07-07 — `INVALID_CREDENTIALS`/HTTP 403 com senha correta. Investigação ao vivo subsequente (login real pelo navegador, interceptação de `XMLHttpRequest` via extensão Chrome, leitura estrutural de `encrypt.js`/`su.js`/`tpEncrypt.js` reais do equipamento) sugeriu causa raiz parcialmente incorreta, corrigida na rodada seguinte.",
+          "note": "Mantido no catálogo como histórico de descarte específico desta hipótese de FORMA de corpo de login (não da existência das duas chamadas, que se provou correta na rodada seguinte). Não reintroduzir o corpo `operation=login&password=<hex>&confirm=true` para este profile — mas as duas chamadas `form=keys`+`form=auth` SÃO o protocolo real, confirmadas na rodada seguinte."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "REFUTADO PARCIALMENTE por evidência ao vivo DEFINITIVA via Playwright em 2026-07-07 (terceira rodada): esta entrada (segunda rodada) tinha concluído que existe apenas UMA chamada de preparação (`form=auth`) devolvendo uma única chave RSA reaproveitada para cifrar a senha e assinar o `sign`. Essa conclusão estava ERRADA — resultado de uma captura incompleta feita com a extensão Chrome, que pulou a chamada `form=keys` por cache/estado do navegador. A captura completa via Playwright (`page.on('response')`, corpo de request+response completo de cada chamada, incluindo chamadas autenticadas pós-login com `stok` real funcionando) confirma que existem DUAS chamadas de preparação com DUAS chaves RSA distintas: `form=keys` (chave 1024-bit, só para cifrar senha) e `form=auth` (chave 512-bit, só para assinar `sign`, + `seq`). A parte que PERMANECE confirmada e correta desta entrada: o corpo de login não leva `&confirm=true`, e o campo `password` dentro do texto plano de `data` é a senha já cifrada em RSA (hex), não texto puro. Ver evidência `auth_mechanism` mais recente abaixo para o protocolo completo e definitivo com as duas chamadas.",
+          "confidence": 0.1,
+          "confidenceLevel": "LOW",
+          "source": "Evidência ao vivo real (segunda rodada): login real bem-sucedido pelo navegador contra a unidade física do Luiz, interceptado via `XMLHttpRequest` por script injetado na própria página usando a extensão Chrome (2026-07-07) — captura incompleta, corrigida na terceira rodada via Playwright.",
+          "note": "Confidence baixada de 0.3 para 0.1 nesta rodada: a conclusão de alto nível desta entrada (uma única chamada de preparação) foi refutada pela captura completa via Playwright. Mantida acima de 0 só porque a parte sobre o corpo de login (sem confirm=true, senha em RSA-hex) permanece correta e foi incorporada à entrada definitiva abaixo."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "Corpo de login real confirmado byte a byte em 2026-07-07 (segunda rodada, via extensão Chrome): o texto plano que entra no AES para virar o campo `data` é exatamente `operation=login&password=<256 caracteres hex>` — SEM `&confirm=true` no final. Os 256 caracteres hex do campo `password` são a senha JÁ CIFRADA EM RSA. Esta conclusão específica sobre o CORPO DE LOGIN permanece válida e foi incorporada, sem alteração, à evidência definitiva da terceira rodada abaixo — só a suposição sobre o NÚMERO DE CHAMADAS DE PREPARAÇÃO (que esta mesma rodada também concluiu incorretamente ser uma só) foi corrigida.",
+          "confidence": 0.6,
+          "confidenceLevel": "MEDIUM",
+          "source": "Evidência ao vivo real: hook instalado em `CryptoJS.AES.encrypt` na própria página do equipamento via extensão Chrome, capturando o texto plano exato durante um login real bem-sucedido pelo navegador contra a unidade física do Luiz, 2026-07-07.",
+          "note": "Confidence baixada de 0.75 para 0.6 nesta rodada: a captura desta entrada específica (texto plano do campo `data`) não foi refeita via Playwright na terceira rodada — permanece correta por reconfirmação estrutural (bate com a captura completa de request/response de `form=login`), mas não foi recapturada byte a byte com a ferramenta mais confiável usada nesta rodada."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "Protocolo real confirmado por evidência ao vivo DEFINITIVA via Playwright em 2026-07-07 (terceira rodada): captura com `page.on('response')` interceptando o corpo COMPLETO de request E response de cada chamada `cgi-bin/luci` durante um login real que teve sucesso total contra a unidade física do Luiz — incluindo chamadas autenticadas pós-login, com `stok` real funcionando. Passos confirmados: (1) `POST {host}/cgi-bin/luci/;stok=/login?form=keys`, corpo `operation=read`. Resposta real: `{\"success\":true,\"data\":{\"password\":[\"<256 caracteres hex>\",\"010001\"],\"mode\":\"router\",\"username\":\"\"}}` — `data.password` é a chave RSA (módulo 256 hex = 128 bytes = RSA 1024-bit) usada SÓ para cifrar a senha. (2) `POST {host}/cgi-bin/luci/;stok=/login?form=auth`, corpo `operation=read`. Resposta real: `{\"success\":true,\"data\":{\"key\":[\"<128 caracteres hex>\",\"010001\"],\"seq\":<número>}}` — `data.key` é uma chave RSA DIFERENTE da do passo 1 (módulo 128 hex = 64 bytes = RSA 512-bit), usada SÓ para assinar o envelope `sign`. Expoente sempre `010001` (65537) nas duas chaves. (3) `POST {host}/cgi-bin/luci/;stok=/login?form=login`, corpo `sign=<hex>&data=<base64 URL-encoded>` — `data` cifra `operation=login&password=<hex>` (sem `&confirm=true`, confirmado nas duas rodadas anteriores) com a senha em RSA usando a chave do passo 1; `sign` cifra `k=<AES key hex>&i=<AES IV hex>&h=<hash>&s=<seq>` em pedaços de 53 bytes (= 64 - 11 bytes de overhead PKCS1v1.5, derivado do tamanho real da chave de 512-bit do passo 2) usando a chave do passo 2. Existem outras chamadas reais no meio do fluxo capturado (`form=check_factory_default`, `form=password` (`{\"enable_rec\":false}`), `locale?form=multilang`, `domain_login?form=dlogin`) — todas irrelevantes para o handshake de cripto, checks de UI/cloud/idioma, não precisam ser replicadas. `h` (hash do sign) ainda não confirmado byte a byte nesta rodada (não capturamos o texto puro do `sign` antes de cifrar, só os corpos JSON de request/response) — mantida a suposição `md5(password)`.",
+          "confidence": 0.85,
+          "confidenceLevel": "HIGH",
+          "source": "Evidência ao vivo DEFINITIVA: captura via Playwright, `page.on('response')` interceptando corpo completo de request E response de cada chamada `cgi-bin/luci`, durante um login real que teve sucesso total contra a unidade física do Luiz, 2026-07-07 — incluindo chamadas autenticadas pós-login com `stok` real funcionando.",
+          "note": "Confidence HIGH (0.85, mais alta que qualquer entrada anterior deste profile) porque, diferente das duas rodadas anteriores, o corpo COMPLETO de request E response de CADA chamada foi capturado com uma ferramenta de instrumentação real de navegador (Playwright), não inferido por leitura estrutural de JS ou por captura parcial via extensão. Não é 0.95+ porque ainda resta a suposição não confirmada byte a byte do hash do `sign`, e porque o próximo teste real de login (`gradlew :core:tplinkC6StokManualCheck`) ainda não confirmou sucesso ponta a ponta com esta implementação corrigida (que repôs `form=keys`)."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "REFUTADO PARCIALMENTE por captura byte a byte externa em 2026-07-07 (quarta rodada): mesmo com as duas chaves RSA da entrada anterior corrigidas, o teste real seguinte (`gradlew :core:tplinkC6StokManualCheck`) AINDA falhou com `INVALID_CREDENTIALS`/HTTP 403. Uma ferramenta externa (Codex, outro agente de IA, não Claude Code) capturou o texto puro exato do campo `sign` antes de cifrar, durante um login real bem-sucedido contra a mesma unidade física/firmware: `k=5945270769887026&i=3257785177414969&h=f6fdffe48c908deb0f4c3bd36c032e72&s=855135262` (84 caracteres). Isso refuta a suposição, presente desde a primeira rodada, de que a chave/IV AES eram bytes binários aleatórios reais (`SecureRandom.nextBytes`) hex-encodados para virar `k=`/`i=`. O valor real: `k=5945270769887026` e `i=3257785177414969` são strings de exatamente 16 caracteres, só dígitos decimais `0-9` — nunca hex (que teria caracteres `a-f` misturados com frequência esperada). Isso bate com a variante `EncryptionWrapperMR` da lib de referência `tplinkrouterc6u` (distinta da `EncryptionWrapper` genérica assumida até aqui): a chave AES é uma string decimal de 16 caracteres usada DIRETAMENTE como os 16 bytes ASCII da chave/IV — nunca decodificada de hex, nunca bytes binários aleatórios gerados e depois convertidos para hex. `s=855135262` confirma matematicamente `seq (855134878, capturado) + tamanho do ciphertext AES em bytes (384, capturado) = 855135262` — a fórmula já implementada em `buildSignPlaintext` (`seq + tamanho do ciphertext`) está correta e não precisou mudar. String de 84 caracteres, cifrada em pedaços de 53 bytes (RSA 512-bit, chunk já implementado corretamente) → 2 pedaços (53+31 bytes) → 2 blocos de 64 bytes cada = 256 caracteres hex no `sign` final, exatamente o tamanho real observado em capturas anteriores — reforça que só a geração de chave/IV estava errada, não o restante do envelope. `h=f6fdffe48c908deb0f4c3bd36c032e72` (32 caracteres hex = MD5) não teve seu conteúdo exato confirmado nesta rodada (segue como hipótese `md5(password)`).",
+          "confidence": 0.75,
+          "confidenceLevel": "HIGH",
+          "source": "Captura byte a byte do texto puro do campo `sign` antes de cifrar, via ferramenta externa (Codex, outro agente de IA, não Claude Code), durante um login real bem-sucedido contra a mesma unidade física do Luiz (Archer C6 v2.0, firmware `1.1.10 Build 20230830 rel.69433(5553)`), 2026-07-07.",
+          "note": "Confidence 0.75 (mais alta que a entrada anterior de mesma rodada para o mecanismo geral, mas não 0.85+): a captura em si é byte a byte e definitiva quanto ao FORMATO da chave/IV (dígitos decimais, não hex de bytes aleatórios), mas ainda não foi validada ponta a ponta contra o hardware com a implementação Kotlin corrigida (`TpLinkStokLuciCrypto.generateAesKeyOrIvDigits`) — e o hash `h=` do sign permanece hipótese não confirmada, próxima suspeita caso esta correção sozinha não baste. Reduz o valor da entrada anterior (0.85) só quanto à conclusão de que a implementação das três rodadas anteriores já estaria correta — a causa raiz completa da falha persistente de login estava, pelo menos em parte, nesta geração de chave/IV, não só nas duas chaves RSA."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "A mesma pesquisa de terceiros (rodada anterior) documenta uma terceira geração de firmware, NÃO confirmada contra a unidade do Luiz: a classe `TplinkRouterV1_11` (firmwares 1.11.0+) usa autenticação só-RSA sem envelope AES para chamadas autenticadas, distinguível pelo tamanho da chave RSA devolvida por `form=auth` (>=512 caracteres hex = RSA 2048-bit vs. 128 caracteres hex = RSA 512-bit do mecanismo confirmado nesta rodada). O firmware confirmado desta unidade (`1.1.10 Build 20230830 rel.69433(5553)`) já teve o tamanho de chave RSA real de `form=auth` capturado nesta rodada (128 caracteres hex = RSA 512-bit) — não bate com o padrão >=512 caracteres hex desta hipótese de terceira geração, portanto esta unidade não é `TplinkRouterV1_11`.",
+          "confidence": 0.2,
+          "confidenceLevel": "LOW",
+          "source": "Leitura direta do código-fonte do pacote Python `tplinkrouterc6u` (rodada anterior) para a hipótese em si; captura via Playwright desta rodada para o tamanho de chave real de `form=auth` (128 caracteres hex), que já descarta esta hipótese para esta unidade específica.",
+          "note": "Deliberadamente não implementado. Tamanho de chave real confirmado (128 caracteres hex = RSA 512-bit) já é suficiente para descartar esta hipótese de terceira geração para a unidade física do Luiz especificamente — mantido só como nota de risco/planejamento para outras unidades/firmwares."
+        }
+      ],
+      "expectedProtocols": [
+        {
+          "protocol": "HTTP_LOCAL_WEBUI",
+          "detectionState": "SUPPORTED",
+          "note": "Confirmado por probe real: `GET /` e `GET /webpages/login.html` responderam HTTP 200 contra a unidade física do Luiz, 2026-07-07."
+        },
+        {
+          "protocol": "HTTPS_LOCAL_WEBUI",
+          "detectionState": "UNKNOWN",
+          "note": "Não investigado nesta rodada."
+        },
+        {
+          "protocol": "TR-069_CWMP",
+          "detectionState": "UNKNOWN",
+          "note": "Fingerprint passivo apenas, nunca canal de ação local, se existir."
+        },
+        {
+          "protocol": "UPNP_IGD",
+          "detectionState": "UNKNOWN",
+          "note": "Não investigado nesta rodada."
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "READ_DEVICE_INFO",
+          "state": "UNKNOWN",
+          "reason": "Revisao desta rodada (2026-07-07, mapeamento de capabilities restantes): checado o corpo de resposta de TODAS as chamadas ja capturadas ao vivo do fluxo `tplink-stok-luci` — `form=keys`, `form=auth`, `form=login` e `admin/status?form=all` — nenhuma delas carrega campo de vendor/modelo/versao de hardware. O modelo/hardware desta unidade (\"Archer C6 v2.0\") registrado em `docs/drivers/live-evidence/tplink-archer-c6-stok-v1.json` e metadado do banco de teste (identificacao manual da unidade fisica), nao um campo de API — nao pode alimentar `READ_DEVICE_INFO` sem inventar heuristica. Nenhum endpoint novo foi chamado nesta rodada para tentar preencher esta capability, por falta de evidencia ao vivo (regra explicita da tarefa). Permanece `UNKNOWN`."
+        },
+        {
+          "id": "READ_WAN_STATUS",
+          "state": "EXPERIMENTAL",
+          "reason": "`TpLinkStokLuciStatusParser` (adicionado nesta rodada) mapeia `wan_ipv4_ipaddr` de `admin/status?form=all` para `TpLinkStokLuciWanStatus`. EXPERIMENTAL (nao AVAILABLE) porque: (1) o parser foi validado so por teste unitario com nome de campo relatado de sessao de teste manual anterior, nao recapturado byte a byte nesta rodada; (2) `DriverFamily.readCapability(id)` continua Unavailable — o dado real so sai via `readSnapshot(username, password)` direto, sem Capability Engine gerenciando sessao; (3) sem revisao de telemetria da Marisa ainda (gate `READ_ONLY_ALPHA -> READ_ONLY_BETA`)."
+        },
+        {
+          "id": "READ_LAN_STATUS",
+          "state": "EXPERIMENTAL",
+          "reason": "`TpLinkStokLuciStatusParser` mapeia `lan_macaddr` e `lan_ipv4_ipaddr` de `admin/status?form=all` para `TpLinkStokLuciLanStatus`. Por decisao de `docs/architecture/adr/0001-fronteira-sanitizacao-telemetria.md` (2026-07-07), o modelo carrega MAC bruto, sem mascaramento — sanitizacao de telemetria e responsabilidade exclusiva de um futuro Telemetry Collector na fronteira de exportacao, nunca do parser do driver (corrige o texto desta entrada em manifestos anteriores, que ainda descrevia mascaramento). Mesmas ressalvas de `READ_WAN_STATUS` quanto a EXPERIMENTAL em vez de AVAILABLE (parser nao recapturado byte a byte nesta rodada, sem Capability Engine, sem revisao de telemetria da Marisa)."
+        },
+        {
+          "id": "READ_WIFI_STATUS",
+          "state": "EXPERIMENTAL",
+          "reason": "`TpLinkStokLuciStatusParser` mapeia `wireless_2g_ssid`/`wireless_5g_ssid`/`wireless_2g_channel` (radios principais) e `guest_2g_ssid`/`guest_5g_ssid` (redes de convidados) para `TpLinkStokLuciWifiRadio`. Por decisao de `docs/architecture/adr/0001-fronteira-sanitizacao-telemetria.md` (2026-07-07), SSID carrega valor bruto (nunca hash) — corrige o texto desta entrada em manifestos anteriores, que ainda descrevia hash SHA-256. `wireless_*_psk_key`/`guest_*_psk_key` (senha do Wi-Fi) continuam nunca lidos para nenhum campo do modelo — regra de proibicao de coleta, nao de sanitizacao. Canal de 5G/convidados tentado por simetria de nome de campo, sem confirmacao de evidencia ao vivo propria. Revisao desta rodada (2026-07-07, mapeamento de capabilities restantes) confirmou contra o vocabulario oficial (`docs/drivers/driver-model.md`, `CapabilityId`) que nao existe capability propria para rede de convidados — decisao mantida de modelar `guest_2g_ssid`/`guest_5g_ssid` como radios adicionais (`guestNetwork=true`) dentro desta mesma capability, sem propor capability nova unilateralmente (decisao de vocabulario e do Rafael, ver `/modelo-capacidades`). Tambem revisado nesta rodada, sem capability correspondente no vocabulario atual: `wireless_2g_wps_state` (estado de WPS — nenhuma capability dedicada de WPS existe), `storage_*`/`usb_available`/`printer_*` (compartilhamento USB — nenhuma capability de armazenamento/impressora existe) e `modem_*` (prefixo observado sem nome/conteudo de campo exato confirmado — insuficiente para mapear com seguranca para `READ_WAN_STATUS` ou qualquer outra capability). Nenhum desses campos ganhou parsing nesta rodada, para nao forcar mapeamento sem capability correspondente. Mesmas ressalvas de `READ_WAN_STATUS` quanto a EXPERIMENTAL em vez de AVAILABLE."
+        },
+        {
+          "id": "READ_CONNECTED_CLIENTS",
+          "state": "EXPERIMENTAL",
+          "reason": "`TpLinkStokLuciStatusParser` mapeia `access_devices_wired[]` (`macaddr`, `ipaddr`, `hostname`) de `admin/status?form=all` para `TpLinkStokLuciConnectedClient`. Por decisao de `docs/architecture/adr/0001-fronteira-sanitizacao-telemetria.md` (2026-07-07), MAC carrega valor bruto, sem mascaramento — corrige o texto desta entrada em manifestos anteriores, que ainda descrevia mascaramento. So cobre clientes cabeados confirmados ate aqui — lista de clientes Wi-Fi (`access_devices_wireless` ou equivalente) ainda nao tem evidencia de nome de campo. Mesmas ressalvas de `READ_WAN_STATUS` quanto a EXPERIMENTAL em vez de AVAILABLE."
+        },
+        {
+          "id": "READ_FIRMWARE",
+          "state": "UNKNOWN",
+          "reason": "Mesma revisao desta rodada de `READ_DEVICE_INFO`: nenhum campo de versao de firmware apareceu em `form=keys`, `form=auth`, `form=login` ou `admin/status?form=all` ate aqui. A versao de firmware conhecida desta unidade (`1.1.10 Build 20230830 rel.69433(5553)`) veio de identificacao manual da unidade fisica, registrada em `docs/drivers/live-evidence/tplink-archer-c6-stok-v1.json`, nao de um campo de API parseado. Sem endpoint novo chamado nesta rodada por falta de evidencia ao vivo. Permanece `UNKNOWN`."
+        },
+        {
+          "id": "REBOOT_DEVICE",
+          "state": "UNKNOWN",
+          "reason": "Nao implementado. A validacao real desta plataforma ate aqui foi somente de leitura autenticada; nenhuma acao de escrita/reboot foi testada."
+        }
+      ],
+      "knownFirmwareBugs": [
+        {
+          "description": "CONFIRMADO por teste real em 2026-07-07: a implementação do handshake baseada só na leitura do pacote Python `tplinkrouterc6u` (duas chamadas de preparação, corpo de login `operation=login&password=<hex>&confirm=true`) falha com `INVALID_CREDENTIALS`/HTTP 403 contra este firmware, mesmo com senha correta. Não é bug do firmware — era divergência sobre a FORMA exata do corpo de login (confirm=true indevido, senha deveria ser RSA-hex), não sobre o número de chamadas de preparação (que a terceira rodada confirmou estar correto desde o início: duas chamadas, `form=keys` + `form=auth`).",
+          "confidence": 0.9,
+          "source": "Execução real (`gradlew :core:tplinkC6StokManualCheck`) contra a unidade física do Luiz, 2026-07-07, mais investigação ao vivo subsequente (interceptação de XMLHttpRequest via extensão Chrome, leitura de JS real do equipamento)."
+        },
+        {
+          "description": "CONFIRMADO por segunda rodada de teste real em 2026-07-07: mesmo já usando o envelope `sign`/`data` correto, o login continuava falhando com `INVALID_CREDENTIALS`/HTTP 403. A investigação da segunda rodada (via extensão Chrome) concluiu, incorretamente, que a causa raiz incluía a remoção da chamada `form=keys` (por ter capturado só uma chamada de preparação). A terceira rodada (Playwright, captura completa) corrigiu esse engano: a extensão Chrome havia pulado `form=keys` por cache/estado do navegador naquela tentativa — o protocolo real sempre teve duas chamadas de preparação com duas chaves distintas. Lição reforçada: uma ferramenta de captura de navegador pode pular chamadas de rede de forma não determinística (cache, estado de sessão); qualquer conclusão sobre 'esta chamada não existe' deve ser verificada com uma segunda ferramenta de instrumentação antes de virar mudança de protocolo definitiva.",
+          "confidence": 0.9,
+          "source": "Execução real (`gradlew :core:tplinkC6StokManualCheck`, primeira e segunda correções) contra a unidade física do Luiz, mais captura definitiva via Playwright (terceira rodada) que revelou a causa raiz completa: a segunda correção tinha removido `form=keys` por engano, baseada em captura incompleta."
+        },
+        {
+          "description": "CONFIRMADO por terceira rodada de teste real em 2026-07-07: mesmo com as duas chaves RSA corrigidas (form=keys + form=auth), o login continuava falhando com INVALID_CREDENTIALS/HTTP 403. A quarta rodada (captura byte a byte externa, via Codex, do texto puro do campo sign antes de cifrar) revelou a causa raiz provável: a chave/IV AES nunca foram bytes binários aleatórios reais hex-encodados (suposição presente desde a primeira rodada) — o firmware usa a variante EncryptionWrapperMR da lib de referência tplinkrouterc6u, em que k=/i= no envelope sign são strings de 16 caracteres decimais ASCII usadas diretamente como os 16 bytes da chave/IV. Lição: mesmo depois de corrigir um erro real (as duas chaves RSA), um segundo erro independente na mesma implementação (geração de chave/IV) pode continuar produzindo o mesmo sintoma de falha (INVALID_CREDENTIALS/HTTP 403) — cada suspeita deve ser isolada e confirmada byte a byte antes de assumir que a causa raiz foi encontrada.",
+          "confidence": 0.75,
+          "source": "Execução real (`gradlew :core:tplinkC6StokManualCheck`, terceira correção) contra a unidade física do Luiz, mais captura byte a byte externa (quarta rodada, via Codex) do texto puro do campo sign de um login real bem-sucedido contra a mesma unidade/firmware."
+        }
+      ],
+      "operatorProvisioningRisk": {
+        "risk": "LOW",
+        "note": "Roteador de varejo, não gerenciado por ACS de operadora na configuração padrão."
+      },
+      "confidenceScoreOverall": 0.75,
+      "confidenceScoreOverallNote": "Correcao de consistencia apos a validacao real consolidada em `docs/drivers/live-evidence/tplink-archer-c6-stok-v1.json`, com pequeno reajuste nesta rodada. Calculo conservador atualizado: 0.10 de 'match de headers/banners reais' (probe real e fluxo `/webpages/login.html` -> `/cgi-bin/luci`); 0.20 de 'match de descritor/endpoint canônico real' (handshake `form=keys` + `form=auth` + `form=login`, `stok`, `sysauth` e endpoint autenticado `admin/status?form=all` observados ao vivo); 0.20 de 'autenticacao bem-sucedida testada no modo esperado' (login real bem-sucedido com a implementacao alinhada ao hardware); 0.15 de 'capability sanity check' (subiu de 0.10: alem da leitura autenticada bruta ponta a ponta, agora existe `TpLinkStokLuciStatusParser` mapeando `READ_WIFI_STATUS`/`READ_LAN_STATUS`/`READ_WAN_STATUS`/`READ_CONNECTED_CLIENTS` de forma estruturada — dado bruto, sem sanitizacao no proprio driver desde a correcao da ADR 0001 — nao chega a 0.20 porque o mapeamento de campo ainda nao foi recapturado/reconfirmado byte a byte nesta rodada, so herdado de nomes de campo relatados de uma sessao de teste manual anterior); 0.10 de 'firmware/modelo no catalogo offline'; 0 de 'evidencia comunitaria' como bonus extra, para nao inflar artificialmente. Total: 0.75. Nao sobe mais porque `DriverFamily.readCapability(id)` continua Unavailable (sem Capability Engine gerenciando sessao) e porque nenhuma capability deste profile foi revisada pela Marisa quanto a telemetria (gate obrigatorio para `READ_ONLY_BETA`, ver `/ciclo-vida-driver`). Rodada de 2026-07-07 (mapeamento de capabilities restantes, manifesto `catalog-2026.07.21.json`) foi so revisao/documentacao — nenhuma evidencia ao vivo nova foi coletada, `READ_DEVICE_INFO`/`READ_FIRMWARE` permanecem `UNKNOWN` e nenhuma capability nova entrou no vocabulario — score nao muda."
+    },
+    {
+      "profileId": "tplink_archer_c20_v1",
+      "vendor": "TP-Link",
+      "model": "Archer C20",
+      "deviceType": "ROUTER",
+      "productLine": "TP-Link Archer (AC750 single/dual-band de entrada)",
+      "platformId": "tplink-legacy-cgi",
+      "driverFamilyId": "tplink-legacy-cgi-driver",
+      "driverConfig": {
+        "loginValidationBundle": {
+          "sections": [
+            {
+              "section": "IGD_DEV_INFO",
+              "fields": [
+                "modelName",
+                "description",
+                "X_TP_isFD"
+              ]
+            },
+            {
+              "section": "ETH_SWITCH",
+              "fields": [
+                "numberOfVirtualPorts"
+              ]
+            },
+            {
+              "section": "SYS_MODE",
+              "fields": [
+                "mode"
+              ]
+            },
+            {
+              "section": "/cgi/info",
+              "fields": []
+            }
+          ]
+        },
+        "deviceInfoIndex": 0,
+        "ethSwitchIndex": 1,
+        "sysModeIndex": 2,
+        "wifiStatusBundle": {
+          "sections": [
+            {
+              "section": "LAN_WLAN",
+              "fields": [
+                "name",
+                "SSID"
+              ]
+            }
+          ]
+        },
+        "wifiStatusIndex": 0,
+        "connectedClientsBundle": {
+          "sections": [
+            {
+              "section": "LAN_HOST_ENTRY",
+              "fields": [
+                "leaseTimeRemaining",
+                "MACAddress",
+                "hostName",
+                "IPAddress"
+              ]
+            }
+          ]
+        },
+        "connectedClientsIndex": 0
+      },
+      "firmwareKnown": [
+        "V4/V5 (linha AC750 mais antiga)",
+        "firmware ≤ V6.6_230412 confirmado vulnerável a CVE-2024-57049"
+      ],
+      "stage": "READ_ONLY_ALPHA",
+      "stageReason": "Primeira execução bem-sucedida de `tplinkC20ManualCheck` (versão reescrita) contra a unidade física do Luiz em 2026-07-07, confirmando o driver ponta a ponta (não só o protocolo em teoria). Trajetória completa até aqui: (1) mecanismo especulativo original (MD5+POST em `/cgi/login`) REFUTADO por HTTP 500; (2) protocolo real descoberto via captura DevTools (dispatcher único `/cgi`, blocos de seção, cookie `Authorization: Basic base64(user:pass)`); (3) primeira reescrita ainda falhava com `[error]71111` — causa: driver anexava um bloco `/cgi/info` de sessão em toda requisição, quando na realidade ele só aparece na carga inicial da tela de Status (confirmado por HAR real de 252 requisições); (4) corrigido, mas `[error]71111` persistiu mesmo após reboot do roteador (descartando lockout) — causa real: o corpo da requisição usava `\\n` (LF) como terminador de linha, mas o firmware exige `\\r\\n` (CRLF), confirmado byte a byte contra um segundo HAR de uma sessão real completa (login ao logout, 130 requisições, 100% CRLF); (5) corrigido, e a execução real seguinte teve sucesso para `READ_DEVICE_INFO` e `READ_CONNECTED_CLIENTS` — dados reais interpretados corretamente (modelName=Archer C20, description, isFactoryDefault=true, numberOfVirtualPorts=4, mode=ETH; cliente DHCP real com MAC mascarado). `READ_WIFI_STATUS` (seção `LAN_WLAN`) continua falhando com um código de erro diferente e ainda não diagnosticado (`[error]9003`) — não bloqueia a promoção das outras duas capabilities, mas fica como bug aberto (ver SIG-340). Promovido de `DISCOVERY_ONLY` para `READ_ONLY_ALPHA` porque há execução real bem-sucedida de leitura contra o hardware, conforme critério de `/ciclo-vida-driver`.",
+      "physicalTestAccess": true,
+      "physicalTestAccessNote": "Unidade física do Luiz, 192.168.0.1. Histórico completo: (1) tentativa especulativa MD5+POST → HTTP 500 (REFUTED); (2) protocolo real capturado via DevTools; (3) primeira reescrita → `[error]71111` (bug do bloco `/cgi/info` universal); (4) corrigido, `[error]71111` persistiu mesmo após reboot → bug real era CRLF vs LF no corpo; (5) corrigido → execução real bem-sucedida em 2026-07-07: `READ_DEVICE_INFO` e `READ_CONNECTED_CLIENTS` funcionando ponta a ponta contra o hardware. `READ_WIFI_STATUS` ainda falha com `[error]9003`, causa não diagnosticada (ver SIG-340).",
+      "managementDefaults": {
+        "candidateIps": [
+          "192.168.0.1",
+          "192.168.1.1",
+          "tplinkwifi.net"
+        ],
+        "ipConfidence": 0.85,
+        "ipConfidenceNote": "192.168.0.1 confirmado como IP real de gestão da unidade física do Luiz (captura DevTools 2026-07-06), além da convenção já documentada por múltiplas fontes de terceiros para a linha Archer em geral.",
+        "managementPort": 80,
+        "managementPortNote": "HTTP confirmado real (captura DevTools contra a unidade física, 2026-07-06). HTTPS local não investigado."
+      },
+      "credentialConvention": {
+        "defaultUser": "admin",
+        "defaultPasswordPattern": "admin/admin como padrão de fábrica documentado por múltiplas fontes de terceiros (SetupRouter, router-network, cleancss, 192-168-0-1login.org) para o Archer C20 — convenção mais antiga que o C6, que já não usa mais credencial fixa em hardware recente.",
+        "confidence": 0.55,
+        "confidenceNote": "Múltiplas fontes de terceiros convergem em admin/admin, mas nenhuma é documentação oficial primária da TP-Link capturada diretamente nesta pesquisa (páginas de agregadores de default-password). Tratar como pista, não como fato de fabricante confirmado.",
+        "policyNote": "Sem tentativa automática de login em nenhum caso, mesmo havendo convenção de senha padrão documentada — mesma regra de todo o NetHAL. Credencial sempre informada pelo usuário na sessão."
+      },
+      "fingerprintEvidence": [
+        {
+          "type": "auth_mechanism",
+          "value": "CONFIRMADO por execução real de `tplinkC20ManualCheck` (2026-07-07) contra a unidade física do Luiz — não só por captura DevTools, mas pelo driver Kotlin reescrito de fato autenticando com sucesso. Autenticação é HTTP Basic Auth (`base64(usuario:senha)`), carregada via cookie chamado `Authorization` com valor `Basic <base64>` — não pelo header HTTP `Authorization:` padrão. Não há endpoint de login dedicado: a credencial vai em toda requisição de dados contra o dispatcher único `POST /cgi?<query>`, `Content-Type: text/plain`, corpo terminado em `\\r\\n` (CRLF — ver nota abaixo). `TplinkC20AuthenticationClient.login()` valida a credencial fazendo a primeira leitura real (bundle `IGD_DEV_INFO+ETH_SWITCH+SYS_MODE+/cgi/info`) e checando HTTP 200 + `[error]0` + `modelName=` no corpo.",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "source": "Execução real de `tplinkC20ManualCheck` contra 192.168.0.1, 2026-07-07 — login bem-sucedido, dados de device info interpretados corretamente.",
+          "note": "Confidence não é 0.95+ porque o caso de credencial inválida (mapeamento para HTTP 401/403) ainda não foi observado numa execução real — é o comportamento padrão assumido para HTTP Basic Auth, não confirmado literalmente."
+        },
+        {
+          "type": "webui_menu_structure",
+          "value": "CONFIRMADO por captura real (dois HARs) e por execução real bem-sucedida do driver reescrito: dispatcher único `POST /cgi?<query>` (query string variou entre capturas sem relação clara percebida com o corpo — servidor provavelmente ignora a query string e só processa o corpo). Corpo de request em blocos `[NOME_SECAO#0,0,0,0,0,0#0,0,0,0,0,0]indice,qtdCampos` seguido de um campo por linha, **terminadores de linha `\\r\\n` (CRLF), nunca `\\n` puro** — confirmado sistematicamente em 100% de 130 requisições reais de uma sessão completa (login ao logout, 2026-07-07); usar LF puro causa `[error]71111`, não um erro de formato óbvio. O bloco `/cgi/info` (0 campos) só aparece na carga inicial da tela de Status, nunca em requisições avulsas (251 de 252 requisições de outro HAR não o usam). Response em blocos `[a,b,c,d,e,f]indice` com linhas `campo=valor`; múltiplas linhas do mesmo índice = múltiplos resultados da seção (ex.: 2 rádios Wi-Fi); bloco especial `[cgi]indice` com conteúdo JS (`var x=...`, `$.ret=0`) é a confirmação de sessão; `[error]0` no final do corpo = sucesso. Seções confirmadas: `IGD_DEV_INFO` (`modelName`, `description`, `X_TP_isFD`) e `LAN_HOST_ENTRY` (`leaseTimeRemaining`, `MACAddress`, `hostName`, `IPAddress`) — confirmadas com dados REAIS via execução do driver reescrito (não só captura de navegador). `ETH_SWITCH` (`numberOfVirtualPorts`), `SYS_MODE` (`mode`) confirmados via a mesma execução (parte do bundle de login). `LAN_WLAN` (`name`, `SSID`) confirmado por captura de navegador mas FALHA na execução real do driver com `[error]9003` — causa não diagnosticada, ver evidência separada abaixo.",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "source": "Captura real via DevTools (2026-07-06, dois HARs) e execução real bem-sucedida de `tplinkC20ManualCheck` contra 192.168.0.1 (2026-07-07) — payloads de request e response reproduzidos literalmente nos testes de `TplinkC20ResponseParserTest`.",
+          "note": "Não confirmado: seção de status de WAN (nome e formato desconhecidos, não capturados — ver SIG-339 com nomes de seção já identificados por HAR: WAN_COMMON_INTF_CFG, WAN_IP_CONN etc.) e seção de firmware detalhado (versão tipo '0.9.1 4.0 v0044.0 Build 160815', também não capturada) — ambos ficam `READ_WAN_STATUS`/`READ_FIRMWARE` como capability `UNKNOWN`. Significado exato do prefixo `[a,b,c,d,e,f]` do response e dos códigos de erro != 0 (incluindo 9003) ainda não é conhecido."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "`LAN_WLAN` (`name`,`SSID`) retorna `[error]9003` quando pedido isoladamente pelo driver reescrito, mesmo com sessão autenticada válida (a mesma sessão lê `IGD_DEV_INFO` e `LAN_HOST_ENTRY` com sucesso na sequência imediatamente anterior/posterior). Código diferente de `[error]71111` (que era falha de formatação de corpo, já corrigida) — não é um erro de autenticação genérico, é específico desta seção/consulta. Causa não diagnosticada: pode ser código de erro específico do subsistema Wi-Fi (ex.: rádio ocupado, seção exige mais campos do que `name`/`SSID`, ou depende de um valor de query string específico que o driver não usa). Ver SIG-340 para investigação.",
+          "confidence": 0.6,
+          "confidenceLevel": "MEDIUM",
+          "source": "Execução real de `tplinkC20ManualCheck` contra 192.168.0.1, 2026-07-07 — `READ_WIFI_STATUS` retornou lista vazia por causa deste erro.",
+          "note": "Confidence média porque o FATO do erro é reproduzido e certo, mas a CAUSA é desconhecida — não inventar explicação. Próximo passo: capturar via DevTools uma consulta isolada de LAN_WLAN (não em bundle) contra a WebUI real para comparar com o que o driver envia."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "MECANISMO ANTERIOR (POST simples + MD5 em `/cgi/login`) REFUTADO por teste real em 2026-07-06: login retornou HTTP 500 com senha correta. Substituído integralmente pelo mecanismo real confirmado acima.",
+          "confidence": 0.0,
+          "confidenceLevel": "REFUTED",
+          "source": "Execução real de `tplinkC20ManualCheck` (versão anterior do driver) contra 192.168.0.1, 2026-07-06.",
+          "note": "Mantido no catálogo só como histórico de descarte — não usar, não reintroduzir. Código e testes correspondentes foram removidos/reescritos nesta rodada."
+        },
+        {
+          "type": "auth_mechanism",
+          "value": "CVE-2024-57049 (GHSA-qr32-fcm4-m5h9, CVSS 9.8): Archer C20 firmware ≤ V6.6_230412 permite bypass de autenticação em interfaces sob o caminho `/cgi` ao enviar o header `Referer: http://tplinkwifi.net` em requisições sem sessão válida — o firmware responde 200 (em vez de 403) e devolve dados que normalmente exigiriam autorização. TP-Link contesta a severidade alegando que a resposta contém apenas 'variáveis de inicialização de UI não sensíveis'.",
+          "confidence": 0.75,
+          "confidenceLevel": "MEDIUM_HIGH",
+          "source": "CVE-2024-57049 / GHSA-qr32-fcm4-m5h9 (GitHub Advisory Database), replicado por múltiplas bases de vulnerabilidade (pentest-tools.com, Tenable, cvedetails.com, cvefeed.io) e pelo relatório original em github.com/Shuanunio/CVE_Requests.",
+          "note": "Consistente com o caminho `/cgi` confirmado por captura real. O NetHAL NUNCA usa este bypass como caminho de autenticação (regra inegociável de não bypass de auth) — citado aqui só como conhecimento de compatibilidade/risco do equipamento."
+        },
+        {
+          "type": "vendor_class_reference",
+          "value": "Nenhum projeto comunitário consultado (`AlexandrErohin/TP-Link-Archer-C6U`, GPL-3.0; `AlexandrErohin/home-assistant-tplink-router`; `ericpignet/home-assistant-tplink_router`) lista o Archer C20 entre os modelos testados/suportados.",
+          "confidence": 0.9,
+          "confidenceLevel": "HIGH",
+          "source": "README de cada um dos três repositórios, consultados diretamente nesta pesquisa (WebFetch).",
+          "note": "Não impacta mais a confiança geral tanto quanto antes — agora há evidência primária real (captura DevTools) mais forte que qualquer analogia comunitária."
+        },
+        {
+          "type": "html_title",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Nenhum probe passivo real (GET não autenticado na raiz) foi executado nesta rodada.",
+          "note": "Não inventar valor. Ainda pendente."
+        },
+        {
+          "type": "http_headers",
+          "value": null,
+          "confidence": 0.0,
+          "confidenceLevel": "NONE_VERIFIED",
+          "source": "Nenhuma fonte pública ou captura desta rodada reproduziu literalmente o header Server: do httpd do Archer C20.",
+          "note": "Não inventar string de header. Ainda pendente."
+        },
+        {
+          "type": "session_behavior",
+          "value": "Não há conceito de sessão de servidor observado na captura real — cada requisição carrega a credencial completa via cookie `Authorization`, sem token/sessionId de servidor. Diferente do padrão do C6 (sessão via `Set-Cookie` após handshake). Comportamento de concorrência de múltiplas sessões (se o firmware aceita 1 ou N clientes autenticados simultâneos) não foi testado.",
+          "confidence": 0.7,
+          "confidenceLevel": "MEDIUM_HIGH",
+          "source": "Captura real via DevTools contra unidade física do Luiz, 2026-07-06 — ausência de qualquer cookie de sessão de servidor nas capturas observadas.",
+          "note": "Substitui a extrapolação anterior (baseada só em analogia com o C6), que presumia um modelo de sessão de servidor incompatível com o que foi observado na prática."
+        }
+      ],
+      "expectedProtocols": [
+        {
+          "protocol": "HTTP_LOCAL_WEBUI",
+          "detectionState": "SUPPORTED",
+          "note": "Confirmado por captura real (DevTools) e por CVE-2024-57049. Porta 80, dispatcher `/cgi`."
+        },
+        {
+          "protocol": "HTTPS_LOCAL_WEBUI",
+          "detectionState": "UNKNOWN",
+          "note": "Nenhuma fonte consultada confirma ou nega HTTPS local para esta geração de firmware."
+        },
+        {
+          "protocol": "TR-069_CWMP",
+          "detectionState": "UNKNOWN",
+          "note": "Fingerprint passivo apenas, nunca canal de ação local, se existir."
+        },
+        {
+          "protocol": "UPNP_IGD",
+          "detectionState": "UNKNOWN",
+          "note": "Comum na linha Archer em geral por convenção de mercado, não confirmado diretamente para o C20 nesta pesquisa."
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "READ_DEVICE_INFO",
+          "state": "AVAILABLE",
+          "reason": "Execução real de `tplinkC20ManualCheck` (2026-07-07) contra a unidade física do Luiz confirmou o driver ponta a ponta: modelName=Archer C20, description, isFactoryDefault, numberOfVirtualPorts, mode todos interpretados corretamente de dados reais."
+        },
+        {
+          "id": "READ_WAN_STATUS",
+          "state": "UNKNOWN",
+          "reason": "Seção real de status de WAN não foi implementada ainda, embora os nomes de seção já tenham sido identificados via HAR (WAN_COMMON_INTF_CFG, WAN_IP_CONN etc. — ver SIG-339)."
+        },
+        {
+          "id": "READ_WIFI_STATUS",
+          "state": "EXPERIMENTAL",
+          "reason": "Protocolo real confirmado por captura de navegador (seção LAN_WLAN), mas a execução real do driver reescrito (2026-07-07) falhou com `[error]9003` (causa não diagnosticada, ver SIG-340) — lista de Wi-Fi voltou vazia. Não promover além de EXPERIMENTAL até corrigir."
+        },
+        {
+          "id": "READ_CONNECTED_CLIENTS",
+          "state": "AVAILABLE",
+          "reason": "Execução real de `tplinkC20ManualCheck` (2026-07-07) confirmou o driver ponta a ponta: cliente DHCP real interpretado corretamente (hostname, IP, lease time, MAC mascarado nos 3 últimos octetos)."
+        },
+        {
+          "id": "READ_FIRMWARE",
+          "state": "UNKNOWN",
+          "reason": "Seção real de versão de firmware detalhada não foi capturada nesta rodada — não implementada por hipótese, conforme regra do projeto."
+        }
+      ],
+      "knownFirmwareBugs": [
+        {
+          "description": "CVE-2024-57049 (GHSA-qr32-fcm4-m5h9): bypass de autenticação em endpoints sob `/cgi` via header `Referer: http://tplinkwifi.net` forjado, em firmware ≤ V6.6_230412. O NetHAL não usa nem depende deste bypass — citado aqui só como conhecimento de compatibilidade/risco do equipamento, não como técnica do driver. Relevante para o usuário final atualizar o firmware, independente do NetHAL.",
+          "confidence": 0.85,
+          "source": "CVE-2024-57049 / GHSA-qr32-fcm4-m5h9, replicado por múltiplas bases de vulnerabilidade públicas."
+        },
+        {
+          "description": "Modelos irmãos da mesma classe (C2, C20i) documentam histórico de vulnerabilidades de injeção de comando autenticada com RCE root (Pierre Kim, 2017) na interface HTTP de gestão. Não confirmado se o C20 (variante sem 'i') compartilha exatamente a mesma falha, mas reforça que esta é uma linha de firmware historicamente frágil em termos de segurança da WebUI.",
+          "confidence": 0.5,
+          "source": "Pierre Kim, \"TP-Link C2 and C20i vulnerable to command injection...\", pierrekim.github.io/blog/2017-02-09-tplink-c2-and-c20i-vulnerable.html."
+        }
+      ],
+      "operatorProvisioningRisk": {
+        "risk": "LOW",
+        "note": "Roteador de varejo de entrada, não gerenciado por ACS de operadora na configuração padrão documentada."
+      },
+      "confidenceScoreOverall": 0.75,
+      "confidenceScoreOverallNote": "0.2 de 'match de headers/banners real' (0.2/0.25 — captura DevTools real confirma IP, porta e comportamento do dispatcher; falta só um probe HTML/header explícito da tela de login não autenticada); 0.2 de 'match de descritor/endpoint canônico' (0.2/0.20 — dispatcher `/cgi`, formato de bloco e terminador CRLF confirmados integralmente por captura real e por execução real bem-sucedida); 0.18 de 'autenticação testada' (0.18/0.20 — login real bem-sucedido contra o hardware em 2026-07-07; falta só confirmar o caso de credencial inválida numa execução real); 0.12 de 'capability sanity check' (0.12/0.15 — 2 de 3 capabilities implementadas (READ_DEVICE_INFO, READ_CONNECTED_CLIENTS) confirmadas com dados reais via execução do driver; READ_WIFI_STATUS falha com `[error]9003` não diagnosticado, por isso não é o score cheio); 0.05 de 'firmware/modelo no catálogo offline' (0.05/0.10, igual a antes); 0 de 'evidência comunitária/histórico' (0/0.10 — segue sem suporte comunitário, mas isso pesa pouco dado que há evidência primária real agora). Total: 0.2+0.2+0.18+0.12+0.05 = 0.75. Subiu de 0.55 para 0.75 nesta rodada: primeira execução real bem-sucedida de `tplinkC20ManualCheck` (versão reescrita) contra a unidade física do Luiz em 2026-07-07, depois de duas rodadas de correção de bugs reais encontrados só por causa desse teste (bloco `/cgi/info` universal indevido, depois terminador de linha CRLF vs LF). Promovido de `DISCOVERY_ONLY` para `READ_ONLY_ALPHA`. Não promover a `READ_ONLY_BETA` sem corrigir `READ_WIFI_STATUS` (SIG-340) e sem mais execuções reais bem-sucedidas confirmando estabilidade."
+    }
+  ]
+}

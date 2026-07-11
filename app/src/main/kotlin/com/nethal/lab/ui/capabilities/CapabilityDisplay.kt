@@ -106,4 +106,16 @@ fun capabilityPayloadSummary(payload: CapabilityPayload): String = when (payload
             }
         }
     }
+    is CapabilityPayload.DeviceInfo -> {
+        val info = payload.info
+        val model = listOfNotNull(info.vendor, info.model).joinToString(" ").ifBlank { "modelo não lido" }
+        val firmware = info.firmware?.let { "firmware $it" } ?: "firmware não lido"
+        "$model, $firmware"
+    }
+    is CapabilityPayload.Signal -> {
+        val status = payload.status
+        val rx = status.rxPowerDbm?.let { "RX ${it} dBm" } ?: "RX não lido"
+        val tx = status.txPowerDbm?.let { "TX ${it} dBm" } ?: "TX não lido"
+        "$rx, $tx"
+    }
 }
