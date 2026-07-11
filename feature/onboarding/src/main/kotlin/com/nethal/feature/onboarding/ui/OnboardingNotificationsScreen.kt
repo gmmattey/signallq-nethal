@@ -255,7 +255,8 @@ private fun TelemetryBetaOptInSection(
                 "• Protocolo e capabilities detectadas\n" +
                 "• Resultado da autenticação, sem senha\n" +
                 "• Código de erro e tempo de resposta\n" +
-                "• Hash anônimo da instalação",
+                "• Hash anônimo da instalação\n" +
+                "• País/região e operadora, apenas se você informar manualmente",
             color = OnboardingColors.TextSecondary,
             fontSize = 12.sp,
         )
