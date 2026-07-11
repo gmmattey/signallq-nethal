@@ -110,6 +110,24 @@ internal class TpLinkStokLuciLoginException(
  * Com o `h=` confirmado como `md5(username+password)`, o envelope de login desta plataforma fica
  * completamente alinhado com a captura real e com a variante `EncryptionWrapperMR` da lib de
  * referência.
+ *
+ * **Correção de `seq` como contador monotônico por sessão (issue #125, 2026-07-11)**: teste real
+ * isolado a um único login (Luiz, `tplinkC6StokManualCheck` contra o Archer C6 físico) confirmou
+ * login sempre bem-sucedido seguido de HTTP 403 ("sessão/token stok provavelmente expirado") em
+ * TODA leitura autenticada seguinte — inclusive a primeira, inclusive `admin/status?form=all`, já
+ * validado em 2026-07-07. Causa raiz encontrada por leitura de código, não por nova captura ao vivo:
+ * o `seq` devolvido por `form=auth` era guardado como valor fixo (`val`) e reusado sem alteração
+ * tanto no `sign` do próprio `form=login` quanto em TODA chamada de [fetchAuthenticatedRaw] da mesma
+ * sessão. A lib de referência `tplinkrouterc6u` (`EncryptionWrapperMR`, já citada para `k=`/`i=`/`h=`
+ * acima) trata `seq` como contador monotônico: a cada `sign` assinado, `s=` enviado
+ * (`seq + tamanho_base64_do_data`) vira o novo piso da PRÓXIMA assinatura da sessão. Sem esse avanço,
+ * o `sign` do login continua válido (é a chamada que estabelece o piso), mas toda chamada seguinte
+ * assina com um `s=` que já ficou obsoleto no instante em que o login terminou — 403 em 100% das
+ * leituras, exatamente o padrão relatado. Ver KDoc de `SessionEncryptorContext`/[fetchAuthenticatedRaw]
+ * para o mecanismo exato da correção. **Ainda sem confirmação por evidência ao vivo** (o hardware do
+ * Luiz não foi testado de novo com esta correção durante esta rodada) — é uma correção de leitura de
+ * protocolo contra a própria lib de referência que orienta todo este arquivo, não uma suposição nova;
+ * confirmação real fica para o próximo `tplinkC6StokManualCheck` do Luiz.
  */
 internal class TpLinkStokLuciAuthenticationClient(
     private val host: String,
@@ -117,12 +135,32 @@ internal class TpLinkStokLuciAuthenticationClient(
     private val rsaChunkSizeBytes: Int = TpLinkStokLuciCrypto.DEFAULT_RSA_CHUNK_SIZE_BYTES,
 ) : AuthenticationStrategy<TpLinkStokLuciSession> {
 
+    /**
+     * `seq` é **mutável de propósito** — causa raiz da issue #125 (login sempre bem-sucedido, toda
+     * leitura autenticada seguinte falha com 403 "sessão/token stok provavelmente expirado", mesmo a
+     * primeira, mesmo numa sessão nova). O valor devolvido por `form=auth` (`parsedAuthKeys.seq`) só
+     * é o piso correto para a PRIMEIRA assinatura `sign` que o firmware processa de fato — a do
+     * próprio `POST .../login?form=login`. A partir daí, `s=` (`seq + tamanho_base64_do_data`) que o
+     * client acabou de enviar e o firmware acabou de aceitar vira o novo piso esperado na PRÓXIMA
+     * assinatura da mesma sessão: contador monotônico por sessão, mesmo comportamento documentado
+     * pela lib de referência `tplinkrouterc6u` (`EncryptionWrapperMR`, já citada em todo este arquivo
+     * como fonte da correção do resto do protocolo — nenhuma nova suposição, é a MESMA lib que já
+     * orientou a correção de `k=`/`i=`/`h=`).
+     *
+     * A implementação anterior a esta correção guardava `seq` como `val`, fixo no valor bruto de
+     * `form=auth`, e reusava esse mesmo valor tanto para computar o `s=` do login quanto para o `s=`
+     * de TODA leitura autenticada posterior na mesma sessão — inclusive a primeira. Isso explica
+     * exatamente o padrão relatado: o login em si estabelece o piso (é a chamada que o firmware usa
+     * pra fixar o próximo valor esperado), então "funciona" mesmo com esse bug; toda chamada seguinte
+     * assina com um `s=` que já ficou pra trás no exato instante em que o login terminou — 403 em
+     * 100% das leituras, mesmo a primeira, mesmo em uma sessão recém-aberta.
+     */
     private data class SessionEncryptorContext(
         val aesKey: ByteArray,
         val aesIv: ByteArray,
         val signHash: String,
         val signKey: TpLinkStokLuciRsaKey,
-        val seq: Long,
+        var seq: Long,
     )
 
     private val baseUrl = "http://$host"
@@ -269,7 +307,10 @@ internal class TpLinkStokLuciAuthenticationClient(
             aesIv = aesIv.copyOf(),
             signHash = TpLinkStokLuciCrypto.md5Hex(username + password),
             signKey = parsedAuthKeys.key,
-            seq = parsedAuthKeys.seq,
+            // Bug da issue #125: o piso inicial é o `s=` que ESTE login acabou de enviar e o
+            // firmware acabou de aceitar (`parsedAuthKeys.seq + dataBase64.length`), não o `seq` cru
+            // de `form=auth` — ver KDoc de [SessionEncryptorContext].
+            seq = parsedAuthKeys.seq + dataBase64.length,
         )
         return newSession
     }
@@ -289,6 +330,13 @@ internal class TpLinkStokLuciAuthenticationClient(
      * expiração real. Chamado repetidamente pelo mesmo [TpLinkStokLuciDriverFamily]/mesma sessão a
      * partir da issue #16 (Capability Engine com gerenciamento de sessão real): antes, cada leitura
      * fazia login novo, então uma sessão nunca vivia tempo suficiente para expirar entre chamadas.
+     *
+     * **Issue #125**: antes desta correção, o `s=` do `sign` era assinado sempre com o `seq` cru de
+     * `form=auth`, nunca avançado — todo 403 aqui era na verdade dessincronia de contador, não sessão
+     * expirada de verdade (o driver não tem hoje como distinguir os dois casos pelo HTTP status
+     * sozinho, daí a heurística conservadora continuar mapeando para `SESSION_EXPIRED`). Corrigido
+     * avançando [SessionEncryptorContext.seq] logo após montar cada `sign` (aqui e em [login]) — ver
+     * KDoc de `SessionEncryptorContext`.
      */
     @Throws(IOException::class)
     fun fetchAuthenticated(path: String, query: String): String =
@@ -321,6 +369,11 @@ internal class TpLinkStokLuciAuthenticationClient(
             seq = currentEncryptor.seq,
             encryptedDataBase64Length = dataBase64.length,
         )
+        // Bug da issue #125: avança o piso do contador ANTES de enviar, para a PRÓXIMA chamada
+        // assinada desta sessão (login ou fetchAuthenticatedRaw) já nascer sincronizada com o que o
+        // firmware espera — nunca reenviar o `s=` que acabou de ser gasto. Ver KDoc de
+        // [SessionEncryptorContext].
+        currentEncryptor.seq += dataBase64.length
         val signHex = TpLinkStokLuciCrypto.rsaEncryptChunkedToHex(
             modulusHex = currentEncryptor.signKey.modulusHex,
             exponentHex = currentEncryptor.signKey.exponentHex,

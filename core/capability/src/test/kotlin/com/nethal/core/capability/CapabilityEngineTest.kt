@@ -1,5 +1,6 @@
 package com.nethal.core.capability
 
+import com.nethal.core.catalog.CapabilityActionResult
 import com.nethal.core.catalog.CapabilityReadResult
 import com.nethal.core.catalog.DriverFamily
 import com.nethal.core.catalog.DriverFamilyAuthResult
@@ -22,11 +23,16 @@ import org.junit.Test
 private class FakeSessionDriverFamily(
     private val authenticateBehavior: (attempt: Int, username: String, password: String) -> DriverFamilyAuthResult,
     private val readBehavior: (attempt: Int, id: CapabilityId) -> CapabilityReadResult,
+    private val actionBehavior: (attempt: Int, id: CapabilityId) -> CapabilityActionResult = { _, id ->
+        CapabilityActionResult.Unavailable("FakeSessionDriverFamily não implementa ações por padrão neste teste")
+    },
 ) : DriverFamily {
 
     var authenticateCallCount = 0
         private set
     var readCallCount = 0
+        private set
+    var actionCallCount = 0
         private set
     val authenticateCalls = mutableListOf<Pair<String, String>>()
 
@@ -39,6 +45,11 @@ private class FakeSessionDriverFamily(
     override suspend fun readCapability(id: CapabilityId): CapabilityReadResult {
         readCallCount++
         return readBehavior(readCallCount, id)
+    }
+
+    override suspend fun executeAction(id: CapabilityId): CapabilityActionResult {
+        actionCallCount++
+        return actionBehavior(actionCallCount, id)
     }
 }
 
@@ -196,5 +207,104 @@ class CapabilityEngineTest {
         assertFalse((sessionResult as CapabilitySessionResult.InvalidCredentials).reason.contains(secretPassword))
         assertFalse((readResult as CapabilityReadResult.Unavailable).reason.contains(secretPassword))
         assertTrue(driverFamily.authenticateCalls.all { (_, password) -> password == secretPassword })
+    }
+
+    // --- executeAction (issue #103) — mesma política de sessão de readCapability, testada em separado
+    // para garantir que nenhuma lógica de renovação foi duplicada/divergiu entre os dois métodos. ---
+
+    private fun successAction(id: CapabilityId): CapabilityActionResult = CapabilityActionResult.Success(
+        capability = Capability(id = id, state = CapabilityState.AVAILABLE, confidence = 1.0),
+    )
+
+    @Test
+    fun `executeAction authenticates lazily on the first call, just like readCapability`() = runTest {
+        val driverFamily = FakeSessionDriverFamily(
+            authenticateBehavior = { _, _, _ -> DriverFamilyAuthResult.Success },
+            readBehavior = { _, id -> successResult(id) },
+            actionBehavior = { _, id -> successAction(id) },
+        )
+        val engine = CapabilityEngine(driverFamily, username = "admin", password = "secret")
+
+        assertEquals(0, driverFamily.authenticateCallCount)
+
+        val result = engine.executeAction(CapabilityId.REBOOT_DEVICE)
+
+        assertEquals(1, driverFamily.authenticateCallCount)
+        assertTrue(engine.isSessionActive)
+        assertTrue(result is CapabilityActionResult.Success)
+    }
+
+    @Test
+    fun `executeAction reuses an already active session - no repeated login`() = runTest {
+        val driverFamily = FakeSessionDriverFamily(
+            authenticateBehavior = { _, _, _ -> DriverFamilyAuthResult.Success },
+            readBehavior = { _, id -> successResult(id) },
+            actionBehavior = { _, id -> successAction(id) },
+        )
+        val engine = CapabilityEngine(driverFamily, username = "admin", password = "secret")
+
+        engine.readCapability(CapabilityId.READ_LAN_STATUS) // abre a sessão
+        val result = engine.executeAction(CapabilityId.REBOOT_DEVICE)
+
+        assertEquals(1, driverFamily.authenticateCallCount)
+        assertEquals(1, driverFamily.actionCallCount)
+        assertTrue(result is CapabilityActionResult.Success)
+    }
+
+    @Test
+    fun `executeAction renews the session automatically once on SessionExpired, then retries the action`() = runTest {
+        val driverFamily = FakeSessionDriverFamily(
+            authenticateBehavior = { _, _, _ -> DriverFamilyAuthResult.Success },
+            readBehavior = { _, id -> successResult(id) },
+            actionBehavior = { attempt, id ->
+                if (attempt == 1) CapabilityActionResult.SessionExpired(reason = "stok expirado (fake)") else successAction(id)
+            },
+        )
+        val engine = CapabilityEngine(driverFamily, username = "admin", password = "secret")
+
+        val result = engine.executeAction(CapabilityId.REBOOT_DEVICE)
+
+        assertEquals(2, driverFamily.authenticateCallCount) // login inicial + renovação
+        assertEquals(2, driverFamily.actionCallCount) // tentativa que expirou + retentativa pós-renovação
+        assertTrue(result is CapabilityActionResult.Success)
+        assertTrue(engine.isSessionActive)
+    }
+
+    @Test
+    fun `executeAction renewal failure after SessionExpired closes the session and never retries indefinitely`() = runTest {
+        val driverFamily = FakeSessionDriverFamily(
+            authenticateBehavior = { attempt, _, _ ->
+                if (attempt == 1) DriverFamilyAuthResult.Success else DriverFamilyAuthResult.Failure("equipamento fora do ar")
+            },
+            readBehavior = { _, id -> successResult(id) },
+            actionBehavior = { _, _ -> CapabilityActionResult.SessionExpired(reason = "stok expirado (fake)") },
+        )
+        val engine = CapabilityEngine(driverFamily, username = "admin", password = "secret")
+
+        val result = engine.executeAction(CapabilityId.REBOOT_DEVICE)
+
+        assertEquals(2, driverFamily.authenticateCallCount)
+        assertEquals(1, driverFamily.actionCallCount)
+        assertTrue(result is CapabilityActionResult.Unavailable)
+        assertFalse(engine.isSessionActive)
+    }
+
+    @Test
+    fun `executeAction never authenticates automatically for an unsupported action - the DriverFamily default answers honestly without hitting the transport`() = runTest {
+        val driverFamily = FakeSessionDriverFamily(
+            authenticateBehavior = { _, _, _ -> DriverFamilyAuthResult.Success },
+            readBehavior = { _, id -> successResult(id) },
+            // actionBehavior default (Unavailable) — mesma resposta honesta de um driver que não
+            // implementa nenhuma ação, ex. Archer C20/Nokia para REBOOT_DEVICE.
+        )
+        val engine = CapabilityEngine(driverFamily, username = "admin", password = "secret")
+
+        val result = engine.executeAction(CapabilityId.REBOOT_DEVICE)
+
+        assertTrue(result is CapabilityActionResult.Unavailable)
+        // ainda assim autentica (a decisao de "quem suporta o que" e da DriverFamily, nao do engine) -
+        // mas nunca finge sucesso.
+        assertEquals(1, driverFamily.authenticateCallCount)
+        assertEquals(1, driverFamily.actionCallCount)
     }
 }

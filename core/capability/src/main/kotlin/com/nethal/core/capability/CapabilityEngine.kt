@@ -1,5 +1,6 @@
 package com.nethal.core.capability
 
+import com.nethal.core.catalog.CapabilityActionResult
 import com.nethal.core.catalog.CapabilityReadResult
 import com.nethal.core.catalog.DriverFamily
 import com.nethal.core.catalog.DriverFamilyAuthResult
@@ -77,8 +78,11 @@ sealed interface CapabilitySessionResult {
  * ([isSessionActive] volta a `false`) e devolve um motivo explícito — nunca fica tentando
  * indefinidamente.
  *
- * Escopo desta rodada: só leitura (`READ_ONLY`), como todo o resto do NetHAL nesta fase — nenhuma
- * ação de escrita passa por aqui.
+ * Escopo original: só leitura (`READ_ONLY`). A partir da issue #103, [executeAction] cobre também
+ * capability de ação (escrita) — mesma política de sessão lazy/renovação de [readCapability],
+ * reaproveitada em vez de duplicada (`DriverFamily.executeAction`, com o mesmo default honesto
+ * `Unavailable` de [DriverFamily.readCapability] para quem não implementa). Quem decide **quais**
+ * ações cada equipamento suporta continua sendo a Driver Family concreta, nunca esta classe.
  */
 class CapabilityEngine(
     private val driverFamily: DriverFamily,
@@ -126,6 +130,43 @@ class CapabilityEngine(
         }
 
         return driverFamily.readCapability(id)
+    }
+
+    /**
+     * Executa uma capability de ação (escrita) — `REBOOT_DEVICE`, `SET_*` etc. (issue #103). Mesma
+     * política de sessão de [readCapability] (autentica lazy na primeira chamada, renova uma única
+     * vez em [CapabilityActionResult.SessionExpired]) — nenhuma duplicação de lógica de sessão entre
+     * os dois métodos, só o tipo de retorno e o método delegado em [DriverFamily] mudam.
+     *
+     * **Não decide, nem aqui nem em nenhum outro ponto do Core, quais equipamentos/ids são
+     * seguros de executar** — essa decisão já está tomada na Driver Family concreta (só quem
+     * implementa [DriverFamily.executeAction] para um `id` específico permite a execução; as demais
+     * caem no default `Unavailable`). Confirmação explícita do usuário antes de chamar este método
+     * é responsabilidade de quem chama (UI) — este método nunca pergunta, só executa
+     * (`/seguranca-nethal`: a confirmação é responsabilidade da camada de apresentação, não do SDK).
+     */
+    suspend fun executeAction(id: CapabilityId): CapabilityActionResult {
+        if (!isSessionActive) {
+            val sessionResult = ensureSession()
+            if (sessionResult !is CapabilitySessionResult.Active) {
+                return CapabilityActionResult.Unavailable(
+                    reason = "Não foi possível autenticar para executar $id (${sessionResult.describe()}).",
+                )
+            }
+        }
+
+        val firstAttempt = driverFamily.executeAction(id)
+        if (firstAttempt !is CapabilityActionResult.SessionExpired) return firstAttempt
+
+        val renewal = ensureSession()
+        if (renewal !is CapabilitySessionResult.Active) {
+            return CapabilityActionResult.Unavailable(
+                reason = "Sessão expirou ao executar $id e a renovação automática falhou (${renewal.describe()}) " +
+                    "— chame testCredentials()/executeAction novamente para reabrir a sessão.",
+            )
+        }
+
+        return driverFamily.executeAction(id)
     }
 
     /** Encerra a sessão local e descarta a credencial em memória — chamar ao fechar o módulo/tela. */

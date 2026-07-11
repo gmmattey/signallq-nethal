@@ -28,6 +28,8 @@ class TpLinkStokLuciCapabilityEngineIntegrationTest {
         dosSettingQuery = "form=dos_setting&operation=read",
         diagPath = "admin/diag",
         diagQuery = "form=diag",
+        rebootPath = "admin/system",
+        rebootQuery = "form=reboot",
     )
 
     private fun statusBody() = """{"success":true,"data":{"wireless_2g_ssid":"CasaLuiz_2G","wan_ipv4_ipaddr":"201.17.45.90","lan_macaddr":"AA:BB:CC:DD:EE:FF","lan_ipv4_ipaddr":"192.168.0.1"}}"""

@@ -13,8 +13,13 @@ data class ConsentRecord(
 /**
  * Snapshot de todos os consentimentos conhecidos no momento da consulta.
  * WRITE_CONFIGURATION e REBOOT_DEVICE só são perguntados na primeira vez que uma
- * ação daquele tipo for solicitada — ainda não existe Command Executor nesta entrega,
- * então este modelo só é consultado, nunca populado por uma ação real de escrita.
+ * ação daquele tipo for solicitada. Nota (issues #95/#103): `CapabilityEngine.executeAction`
+ * (`:core:capability`) já executa `REBOOT_DEVICE` de verdade contra o driver TP-Link Archer C6, mas
+ * nenhum chamador (`:feature:tools-reboot-wan`) consulta/popula este `ConsentState` ainda — a
+ * confirmação exigida por `/seguranca-nethal` para essa ação hoje é o diálogo por-ação da própria
+ * tela (`RebootConfirmationDialog`), não um escopo de consentimento amplo concedido uma única vez.
+ * Unificar os dois mecanismos (consentimento de escopo vs. confirmação por ação) é decisão de
+ * arquitetura em aberto, não resolvida por esta entrega.
  */
 class ConsentState(private val records: Map<ConsentScope, ConsentRecord>) {
 

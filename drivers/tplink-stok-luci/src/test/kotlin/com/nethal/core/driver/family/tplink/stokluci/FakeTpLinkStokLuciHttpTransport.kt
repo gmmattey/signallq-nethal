@@ -64,6 +64,14 @@ internal class FakeTpLinkStokLuciHttpTransport(
     /** Corpo HTTP cru (`sign=...&data=<base64 cifrado>`) de TODAS as chamadas autenticadas desta sessão — [lastAuthenticatedRequestBody] só guarda a última, insuficiente para testes de duas chamadas (ex.: write+read do diagnóstico nativo de ping). Decifrar `data` com [lastCapturedAesKeyDigits]/[lastCapturedAesIvDigits] para inspecionar o texto plano real enviado. */
     val authenticatedRequestBodies: MutableList<String> = mutableListOf()
 
+    /**
+     * Valores de `s=` (o campo `seq + tamanho_base64_do_data` do envelope `sign`, ver
+     * [TpLinkStokLuciCrypto.buildAuthenticatedSignPlaintext]) decifrados de CADA chamada autenticada
+     * desta sessão, na ordem em que foram enviadas — usado pelo teste de regressão da issue #125
+     * (`seq` precisa avançar entre chamadas, nunca reusar o mesmo piso).
+     */
+    val capturedAuthenticatedSeqValues: MutableList<Long> = mutableListOf()
+
     override fun get(url: String, extraHeaders: Map<String, String>): HttpTransportResponse =
         HttpTransportResponse(404, "", emptyMap(), emptyMap())
 
@@ -149,6 +157,9 @@ internal class FakeTpLinkStokLuciHttpTransport(
             ?: return HttpTransportResponse(400, "", emptyMap(), emptyMap())
         val signPlaintext = decryptRsaChunked(signHex, TestSignKeyFixture.MODULUS_HEX, TestSignKeyFixture.PRIVATE_EXPONENT_HEX)
         lastCapturedSignHash = Regex("""h=([0-9a-f]+)""").find(signPlaintext)?.groupValues?.get(1)
+        Regex("""s=(\d+)""").find(signPlaintext)?.groupValues?.get(1)?.toLongOrNull()?.let {
+            capturedAuthenticatedSeqValues.add(it)
+        }
 
         val aesKeyDigits = lastCapturedAesKeyDigits ?: return HttpTransportResponse(400, "", emptyMap(), emptyMap())
         val aesIvDigits = lastCapturedAesIvDigits ?: return HttpTransportResponse(400, "", emptyMap(), emptyMap())

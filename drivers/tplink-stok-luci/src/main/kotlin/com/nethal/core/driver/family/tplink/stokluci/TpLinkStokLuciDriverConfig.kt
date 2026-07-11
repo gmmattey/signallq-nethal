@@ -54,6 +54,19 @@ data class TpLinkStokLuciDriverConfig(
     val diagPath: String,
     /** Query string fixa anexada a [diagPath], ex.: `"form=diag"`. */
     val diagQuery: String,
+    /**
+     * Caminho relativo do reinício do equipamento (`REBOOT_DEVICE`, issues #95/#103) —
+     * `admin/system?form=reboot`. Assumido por analogia com a convenção `admin/<seção>?form=<ação>`
+     * já confirmada ao vivo para as demais leituras deste profile (`admin/status`,
+     * `admin/onemesh_network`, `admin/security_settings`, `admin/diag`) — **sem confirmação por
+     * evidência ao vivo própria** (nenhuma tentativa de reboot real foi feita contra o hardware
+     * físico; a regressão de sessão HTTP 403 documentada em `fingerprintEvidence[]`/issue #125
+     * bloqueia qualquer validação ao vivo deste driver no momento). Ver
+     * [TpLinkStokLuciDriverFamily.executeAction].
+     */
+    val rebootPath: String,
+    /** Query string fixa anexada a [rebootPath], ex.: `"form=reboot"`. */
+    val rebootQuery: String,
 ) {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }

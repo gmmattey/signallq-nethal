@@ -42,6 +42,22 @@ sealed interface DriverFamilyAuthResult {
 }
 
 /**
+ * Resultado de [DriverFamily.executeAction] (issue #103) — mesmo espírito de granularidade de
+ * [CapabilityReadResult], mas para uma capability de **ação** (o equipamento muda de estado ao
+ * executar, ex. `REBOOT_DEVICE`), distinta de uma leitura passiva. Mesmos 4 casos de
+ * [CapabilityReadResult] por simetria (inclusive [SessionExpired], para o mesmo mecanismo de
+ * renovação automática de sessão do [com.nethal.core.capability.CapabilityEngine] funcionar sem
+ * duplicar política) — sem payload de dado lido, já que uma ação não devolve um snapshot de
+ * capability.
+ */
+sealed interface CapabilityActionResult {
+    data class Success(val capability: Capability) : CapabilityActionResult
+    data class Unavailable(val reason: String) : CapabilityActionResult
+    data class Failure(val reason: String, val cause: Throwable? = null) : CapabilityActionResult
+    data class SessionExpired(val reason: String) : CapabilityActionResult
+}
+
+/**
  * Toda a lógica de comunicação com o equipamento para uma plataforma tecnológica compartilhada
  * (ver `docs/architecture/hal-layering-model.md` §5.5) — o que hoje está mistura em
  * `TplinkOntDriver`/`TplinkC20OntDriver`/`NokiaOntDriver`, sem separação entre "protocolo/driver" e
@@ -51,9 +67,10 @@ sealed interface DriverFamilyAuthResult {
  * [DriverFamilyFactory.create]) e nunca tem endpoint, seção ou campo de modelo hardcoded no próprio
  * código — esse dado vive em `profile.driverConfig` (§5.6/§11.1 do doc de arquitetura).
  *
- * Só cobre leitura (`READ_ONLY`) nesta rodada: escrita (`SET_*`, `REBOOT_*`) entra no mesmo desenho
- * quando o produto avançar para essa fase, sempre gateada pelo Safety Guard (ver `/seguranca-nethal`)
- * — não faz parte do escopo deste passo.
+ * Cobria só leitura (`READ_ONLY`) originalmente — a partir da issue #103, [executeAction] cobre
+ * também capability de **ação** (escrita, `REBOOT_DEVICE` primeiro; `SET_*` no mesmo desenho quando
+ * o produto avançar para essas capabilities), sempre com confirmação explícita do usuário
+ * responsabilidade da UI que chama, nunca deste componente (`/seguranca-nethal`).
  */
 interface DriverFamily {
     /**
@@ -87,6 +104,26 @@ interface DriverFamily {
     suspend fun authenticate(username: String, password: String): DriverFamilyAuthResult =
         DriverFamilyAuthResult.Failure(
             reason = "Esta Driver Family ainda não implementa gerenciamento de sessão real (authenticate()).",
+        )
+
+    /**
+     * Executa uma capability de **ação** (escrita) declarada — `REBOOT_DEVICE`, `SET_*`, etc.
+     * (issue #103). Implementação padrão honesta: `Unavailable` para toda Driver Family que ainda
+     * não implementa nenhuma ação — só quem realmente suporta uma ação específica sobrescreve este
+     * método (ex. [com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciDriverFamily] para
+     * `REBOOT_DEVICE`). Restringir uma ação a um único driver é, portanto, decisão de cada Driver
+     * Family concreta (qual `id` ela reconhece), nunca um `if (vendor == ...)` em quem chama —
+     * mesmo raciocínio de [readCapability]/`CapabilityId` (`/modelo-capacidades`).
+     *
+     * Requer sessão autenticada, mesmo padrão de [readCapability] — sem sessão ativa, resposta
+     * honesta é [CapabilityActionResult.Unavailable], nunca uma execução real. Chamar via
+     * [com.nethal.core.capability.CapabilityEngine.executeAction], que gerencia sessão/renovação
+     * automaticamente, é o caminho normal — chamar este método direto sem autenticar antes só é
+     * seguro para os próprios testes desta Driver Family.
+     */
+    suspend fun executeAction(id: CapabilityId): CapabilityActionResult =
+        CapabilityActionResult.Unavailable(
+            reason = "Esta Driver Family não implementa nenhuma capability de ação nesta rodada.",
         )
 }
 

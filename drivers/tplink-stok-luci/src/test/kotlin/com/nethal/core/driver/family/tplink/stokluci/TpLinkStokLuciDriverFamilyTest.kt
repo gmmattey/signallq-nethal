@@ -22,6 +22,8 @@ class TpLinkStokLuciDriverFamilyTest {
         dosSettingQuery = "form=dos_setting&operation=read",
         diagPath = "admin/diag",
         diagQuery = "form=diag",
+        rebootPath = "admin/system",
+        rebootQuery = "form=reboot",
     )
 
     @Test
@@ -261,6 +263,68 @@ class TpLinkStokLuciDriverFamilyTest {
         )
         val decrypted = TpLinkStokLuciCrypto.aesCbcDecrypt(aesKey, aesIv, TpLinkStokLuciCrypto.base64Decode(dataBase64))
         return String(decrypted, Charsets.UTF_8)
+    }
+
+    @Test
+    fun `executeAction REBOOT_DEVICE without a prior authenticate() call always returns Unavailable, never touches the transport`() = runTest {
+        val transport = FakeTpLinkStokLuciHttpTransport()
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport)
+
+        val result = driver.executeAction(com.nethal.core.model.CapabilityId.REBOOT_DEVICE)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityActionResult.Unavailable)
+        assertTrue((result as com.nethal.core.catalog.CapabilityActionResult.Unavailable).reason.contains("authenticate"))
+        assertEquals(0, transport.postCallCount)
+    }
+
+    @Test
+    fun `executeAction rejects any capability id other than REBOOT_DEVICE`() = runTest {
+        val transport = FakeTpLinkStokLuciHttpTransport(simulateRealServerStok = "tokABC")
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport, backoffMillis = { 0L })
+        driver.authenticate("admin", "secret")
+
+        val result = driver.executeAction(com.nethal.core.model.CapabilityId.RESTART_WIFI)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityActionResult.Unavailable)
+        assertTrue((result as com.nethal.core.catalog.CapabilityActionResult.Unavailable).reason.contains("não implementa a ação"))
+    }
+
+    @Test
+    fun `executeAction REBOOT_DEVICE issues a single authenticated write against the reboot endpoint after authenticate()`() = runTest {
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            simulateRealServerStok = "tokABC",
+            statusResponse = com.nethal.core.protocol.http.HttpTransportResponse(200, """{"success":true,"data":{}}""", emptyMap(), emptyMap()),
+        )
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport, backoffMillis = { 0L })
+        driver.authenticate("admin", "secret")
+
+        val result = driver.executeAction(com.nethal.core.model.CapabilityId.REBOOT_DEVICE)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityActionResult.Success)
+        val capability = (result as com.nethal.core.catalog.CapabilityActionResult.Success).capability
+        assertEquals(com.nethal.core.model.CapabilityId.REBOOT_DEVICE, capability.id)
+
+        // handshake (3) + 1 unico write de reboot, sem retry = 4.
+        assertEquals(4, transport.postCallCount)
+        assertTrue(transport.postedUrls.last().contains("admin/system"))
+        assertTrue(transport.postedUrls.last().contains("form=reboot"))
+    }
+
+    @Test
+    fun `only TpLinkStokLuciDriverFamily implements REBOOT_DEVICE - other Driver Families in this repo fall back to the honest default`() {
+        // Guarda estrutural da restricao de produto (issues #95/#103): REBOOT_DEVICE so pode ser
+        // executado no driver C6. A restricao nao vive em nenhum condicional por fabricante no Core
+        // (proibido por CLAUDE.md) - vive no fato de nenhuma outra DriverFamily deste repositorio
+        // sobrescrever executeAction(). Este teste falha se, no futuro, alguem adicionar uma
+        // implementacao real de executeAction em outro driver sem revisar essa decisao de produto.
+        val defaultDriverFamily = object : com.nethal.core.catalog.DriverFamily {
+            override suspend fun readCapability(id: com.nethal.core.model.CapabilityId) =
+                com.nethal.core.catalog.CapabilityReadResult.Unavailable("n/a")
+        }
+        runTest {
+            val result = defaultDriverFamily.executeAction(com.nethal.core.model.CapabilityId.REBOOT_DEVICE)
+            assertTrue(result is com.nethal.core.catalog.CapabilityActionResult.Unavailable)
+        }
     }
 
     @Test

@@ -268,4 +268,20 @@ class TpLinkLegacyCgiDriverFamilyTest {
             TpLinkLegacyCgiDriverFamily.SUPPORTED_CAPABILITIES,
         )
     }
+
+    @Test
+    fun `REBOOT_DEVICE is not implemented here - restricted to the C6 stok-luci driver by product decision (issues 95 e 103)`() = runTest {
+        val config = realProfileConfig()
+        val transport = FakeTpLinkLegacyCgiHttpTransport(
+            expectedAuthorizationCookie = basicCookie("admin", "secret"),
+            responsesByRequestBody = responsesForSuccessfulSnapshot(config),
+            loginRequestBody = TpLinkLegacyCgiResponseParser.buildRequestBody(config.loginValidationSections()),
+        )
+        val driver = TpLinkLegacyCgiDriverFamily("192.168.0.1", config, transport, backoffMillis = { 0L })
+        driver.authenticate("admin", "secret")
+
+        val result = driver.executeAction(com.nethal.core.model.CapabilityId.REBOOT_DEVICE)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityActionResult.Unavailable)
+    }
 }

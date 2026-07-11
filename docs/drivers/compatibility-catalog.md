@@ -329,6 +329,122 @@ C20 como `TpLinkLegacyCgiDriverFamily`), aprovado com esta ressalva documentada.
 
 ## Changelog
 
+- **2026-07-11 (Bruno — issue #125, correção real do contador `seq` do envelope `sign` em
+  `tplink-stok-luci`)** — Investigação anterior (mesmo dia, entrada abaixo) tinha levantado a
+  hipótese de lockout por múltiplos re-logins em sequência; **refutada por teste real do Luiz**
+  isolando `tplinkC6StokManualCheck` a um único `login()` seguido de leituras autenticadas: login
+  sempre bem-sucedido (`stok` real capturado), mas **toda** leitura autenticada seguinte falhando com
+  HTTP 403 ("sessão/token stok provavelmente expirado") — inclusive a primeira, inclusive
+  `admin/status?form=all`, já dado como confirmado em 2026-07-07.
+
+  **Causa raiz encontrada por leitura de código** (não por nova captura ao vivo):
+  `TpLinkStokLuciAuthenticationClient` guardava `seq` (devolvido cru por `form=auth`) como valor
+  fixo, reusado sem alteração tanto na assinatura do próprio `POST .../login?form=login` quanto em
+  TODA chamada de `fetchAuthenticatedRaw` da mesma sessão. A lib de referência `tplinkrouterc6u`
+  (`EncryptionWrapperMR`) — já citada em todo este driver como fonte da correção de `k=`/`i=`/`h=` —
+  trata `seq` como um contador monotônico por sessão: a cada envelope `sign` assinado, o `s=` enviado
+  (`seq + tamanho_base64_do_data`) vira o novo piso esperado pelo firmware na PRÓXIMA assinatura da
+  mesma sessão. Sem esse avanço, a assinatura do login continua válida (é a própria chamada que
+  estabelece o piso), mas toda chamada seguinte assina com um `s=` que já ficou pra trás no instante
+  em que o login termina — 403 em 100% das leituras autenticadas, exatamente o padrão relatado.
+
+  **Nota de processo (gap descoberto durante a investigação, não introduzido por esta correção):** a
+  afirmação "leitura autenticada real de `admin/status?form=all` confirmada em 2026-07-07"
+  (`docs/drivers/live-evidence/tplink-archer-c6-stok-v1.json`, entrada `2026-07-07` abaixo) vem de
+  captura de tráfego do NAVEGADOR (Playwright) confirmando a FORMA do protocolo, não de uma execução
+  bem-sucedida do `tplinkC6StokManualCheck` (driver Kotlin real) contra o hardware. Não há entrada
+  neste changelog documentando uma corrida real do driver com o envelope `sign=`/`data=` de leitura
+  (adicionado só em `d5b2181`, 2026-07-07 08:25) confirmada contra o equipamento antes da rodada desta
+  issue — plausível que este bug de `seq` sempre tenha existido desde então e nunca tivesse sido
+  exercitado de verdade contra hardware físico até o teste do Luiz em #125.
+
+  **Código alterado:** `TpLinkStokLuciAuthenticationClient.SessionEncryptorContext.seq` passou de
+  `val` para `var`. `login()` inicializa `seq` já contabilizando o próprio request de login
+  (`parsedAuthKeys.seq + dataBase64.length`, o `s=` que aquele login acabou de enviar/ter aceito), em
+  vez do `seq` bruto de `form=auth`. `fetchAuthenticatedRaw()` avança `seq` (`+= dataBase64.length`)
+  logo após montar cada `sign`, antes de enviar — para a PRÓXIMA chamada assinada da sessão (seja
+  outra leitura, seja uma ação como `REBOOT_DEVICE`) já nascer sincronizada.
+
+  **Testes novos** (`TpLinkStokLuciAuthenticationClientTest`, `FakeTpLinkStokLuciHttpTransport` ganhou
+  `capturedAuthenticatedSeqValues`, decifrando `s=` de cada chamada autenticada): confirma que a
+  PRIMEIRA leitura autenticada de uma sessão nova já usa um `s=` maior que o `seq` bruto de
+  `form=auth` (contabilizando o avanço do próprio login) e que duas leituras consecutivas com corpo
+  idêntico produzem `s=` estritamente crescente (nunca o mesmo valor reusado). Ambos os testes falham
+  contra o código anterior à correção — reproduzem o bug sem precisar de hardware real, é comportamento
+  de transporte/parsing, não de firmware.
+
+  **Ainda sem confirmação por evidência ao vivo desta correção específica** contra o Archer C6 físico
+  do Luiz — é uma correção de leitura de protocolo contra a MESMA lib de referência que já orientou
+  toda a correção anterior deste driver (nenhuma suposição nova), mas o próximo `tplinkC6StokManualCheck`
+  do Luiz é quem confirma ou refuta de fato. `stage`/`confidenceScoreOverall` do profile
+  `tplink_archer_c6_stok_v1` não mudam nesta rodada — sem manifesto novo, é correção de código, não de
+  catálogo.
+
+- **2026-07-11 (Bruno — investigação da issue #125, hipótese de lockout por múltiplos logins,
+  refutada por teste real do Luiz)** — Ver entrada acima para a causa raiz real e a correção. Esta
+  entrada preserva o registro da hipótese descartada: análise de código (`git diff` entre o commit
+  confirmado em 2026-07-07 e a PR #124) não encontrou regressão em `fetchAuthenticatedRaw`,
+  `core/protocol` nem `TpLinkStokLuciAuthenticationClient` — byte-idênticos entre as duas rodadas. A
+  diferença real identificada foi de quantidade de re-logins que o `tplinkC6StokManualCheck` da PR
+  #124 passou a disparar em sequência rápida (4-5, vs. 3 antes), levantando a hipótese de lockout por
+  firmware. Teste real do Luiz isolando a um único login refutou essa hipótese (login sempre
+  funciona; toda leitura falha mesmo com um login só) e apontou para o bug de `seq` documentado acima.
+
+- **2026-07-11 (Bruno — `REBOOT_DEVICE` no `tplink-stok-luci`, primeira capability de ação/escrita
+  "genérica" do produto, issues #95/#103)** — Novo manifesto `catalog-2026.07.29.json`
+  (`previousManifest: catalog-2026.07.28.json`).
+
+  **Backend (#103):** `DriverFamily` (`:core:catalog`) ganha `executeAction(id): CapabilityActionResult`
+  (default honesto `Unavailable`, mesmo espírito de `authenticate`) e `CapabilityEngine`
+  (`:core:capability`) ganha `executeAction(id)` reaproveitando a MESMA política de sessão
+  lazy/renovação de `readCapability` (nenhuma lógica de sessão duplicada). `REBOOT_DEVICE` já
+  existia no vocabulário oficial (`CapabilityId`) — não foi criada capability nova; decisão
+  registrada no KDoc de `CapabilityId.REBOOT_DEVICE` de reaproveitar este nome em vez de inventar
+  `REBOOT_WAN`, porque nenhum protocolo mapeado até aqui tem reinício seletivo de interface — todo
+  roteador doméstico reinicia o equipamento inteiro. `TpLinkStokLuciDriverFamily.executeAction`
+  implementa só `REBOOT_DEVICE`, via um único `operation=write` autenticado em
+  `admin/system?form=reboot` (`config.rebootPath`/`rebootQuery`, campos novos do `driverConfig`),
+  reaproveitando a sessão já aberta (`authenticatedClient`) — **sem retry automático de propósito**
+  (reenviar uma ação que muda o estado do equipamento arriscaria disparar dois reboots reais por
+  uma falha só de leitura da resposta).
+
+  **Restrição de driver (decisão de produto do Rafael/Luiz, não técnica):** `REBOOT_DEVICE` só
+  executa no driver TP-Link Archer C6 (`tplink-stok-luci`) — nunca no Archer C20
+  (`tplink-legacy-cgi`) nem no Nokia G-1425G-B (`nokia-gpon`), mesmo que `DriverFamily.executeAction`
+  permitisse tecnicamente nos três. A restrição é estrutural (nenhuma outra Driver Family deste
+  repositório sobrescreve o método, então a implementação default `Unavailable` é tudo o que os
+  outros dois expõem) — nunca um `if (vendor == ...)` em código compartilhado do Core. Testes
+  dedicados em `TpLinkLegacyCgiDriverFamilyTest`/`NokiaGponDriverFamilyTest` confirmam essa
+  restrição explicitamente.
+
+  **UI (#95):** módulo novo `:feature:tools-reboot-wan` — `RebootWanScreen`/`RebootWanViewModel`
+  implementam o protótipo `4h` (diálogo de confirmação, design system seção 1n): estado inicial
+  `ConfirmationPending` exibe o diálogo automaticamente assim que há sessão; `confirmReboot()` é o
+  ÚNICO caminho até `CapabilityEngine.executeAction(REBOOT_DEVICE)`, disparado exclusivamente pelo
+  toque explícito em "Reiniciar" — cancelar (toque em "Cancelar", tocar fora ou voltar) nunca chega
+  a chamar o Core. Cor de "Reiniciar" é `colorScheme.primary` (destaque), não a cor de erro — reboot
+  não apaga dado, mesma regra do design system (seção 1n: "cor de erro só se a ação apagar dados").
+  Não conectado a `SettingsScreen`/`BottomNavHost` nem ao Hub de Ferramentas (`:feature:tools-common`,
+  issue #89, também não conectado ainda) — pendência registrada para quando esse hub existir.
+
+  **Validação: só fake de transporte (JVM), nenhum reboot real disparado contra o hardware do
+  Luiz.** A regressão de sessão HTTP 403 documentada na entrada `2026-07-11` abaixo (issue #125,
+  investigação em paralelo) já bloqueava qualquer leitura autenticada real desta plataforma antes
+  desta rodada começar — capability entra `EXPERIMENTAL` no catálogo por esse motivo (endpoint
+  assumido por analogia com a convenção `admin/<seção>?form=<ação>` já confirmada ao vivo para as
+  demais leituras deste profile, sem confirmação por evidência ao vivo própria), não por dúvida
+  sobre a restrição de driver. Validação real fica para o Luiz, manualmente, depois de #125
+  resolvida.
+
+  `capabilities[]` do profile `tplink_archer_c6_stok_v1` — `REBOOT_DEVICE` sobe de `UNKNOWN` para
+  `EXPERIMENTAL`. `driverConfig` ganha `rebootPath`/`rebootQuery`. `confidenceScoreOverall`
+  inalterado (0.65) — a implementação de uma ação nova sem validação ao vivo não muda a heurística
+  de confiança de fingerprint/leitura já calculada na entrada `2026-07-11` abaixo.
+
+  Revisão de segurança da Marisa pendente antes de sair de `EXPERIMENTAL` (`/ciclo-vida-driver`) —
+  primeira capability de ação "genérica" do produto, fluxo de confirmação revisado com atenção
+  redobrada conforme pedido explícito da tarefa.
+
 - **2026-07-11 (Bruno — Feat #27: `READ_OPTICAL_SIGNAL_MARGIN`/`READ_GPON_ERROR_COUNTERS`/
   `READ_LAN_PORT_STATUS` no driver Nokia, issues #28/#29/#30)** — Três novos campos/capabilities do
   levantamento de campo `NOKIA_GPON_FIELD_MAP.md` (produto irmão SignallQ), itens 1-3 da seção

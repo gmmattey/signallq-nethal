@@ -1,5 +1,6 @@
 package com.nethal.core.driver.family.nokia.gpon
 
+import com.nethal.core.catalog.CapabilityActionResult
 import com.nethal.core.catalog.CapabilityReadResult
 import com.nethal.core.catalog.DriverFamilyAuthResult
 import com.nethal.core.driver.nokia.FakeNokiaHttpTransport
@@ -266,5 +267,14 @@ class NokiaGponDriverFamilyTest {
             ),
             NokiaGponDriverFamily.SUPPORTED_CAPABILITIES,
         )
+    }
+
+    @Test
+    fun `REBOOT_DEVICE is not implemented here - restricted to the C6 stok-luci driver by product decision (issues 95 e 103)`() = runTest {
+        val driver = authenticatedDriver()
+
+        val result = driver.executeAction(CapabilityId.REBOOT_DEVICE)
+
+        assertTrue(result is CapabilityActionResult.Unavailable)
     }
 }

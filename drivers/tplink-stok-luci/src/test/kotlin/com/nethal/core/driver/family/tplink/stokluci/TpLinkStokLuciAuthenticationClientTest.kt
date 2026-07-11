@@ -299,4 +299,57 @@ class TpLinkStokLuciAuthenticationClientTest {
         assertTrue(transport.lastAuthenticatedRequestBody!!.startsWith("sign="))
         assertTrue(transport.lastAuthenticatedRequestBody!!.contains("&data="))
     }
+
+    // --- Regressão issue #125: seq do envelope sign precisa avancar, nunca ser reusado como valor
+    // fixo (login sempre bem-sucedido, TODA leitura autenticada seguinte falhando com 403, mesmo a
+    // primeira, mesmo em sessao nova - ver KDoc de SessionEncryptorContext em
+    // TpLinkStokLuciAuthenticationClient) ---
+
+    @Test
+    fun `first authenticated read already accounts for the seq advance consumed by login itself - issue 125`() {
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            authResponse = authSuccessResponse(seq = 12345),
+            simulateRealServerStok = "tok999",
+            statusResponse = HttpTransportResponse(200, """{"success":true,"data":{"status":"ok"}}""", emptyMap(), emptyMap()),
+        )
+        val client = TpLinkStokLuciAuthenticationClient("192.168.0.1", transport)
+        client.login("admin", "admin")
+
+        client.fetchAuthenticated("admin/status", "form=all&operation=read")
+
+        val firstReadSeq = transport.capturedAuthenticatedSeqValues.single()
+        assertTrue(
+            "s= da primeira leitura autenticada deve ser MAIOR que o seq cru devolvido por form=auth " +
+                "(12345) - precisa contabilizar o avanco que o proprio login ja causou no piso esperado " +
+                "pelo firmware; reusar o seq bruto (bug da issue #125) deixa a primeira leitura fora de " +
+                "sincronia mesmo em uma sessao recem-aberta. capturado=$firstReadSeq",
+            firstReadSeq > 12345L,
+        )
+    }
+
+    @Test
+    fun `seq advances between consecutive authenticated reads instead of reusing the same stale value - issue 125`() {
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            authResponse = authSuccessResponse(seq = 12345),
+            simulateRealServerStok = "tok999",
+            statusResponse = HttpTransportResponse(200, """{"success":true,"data":{"status":"ok"}}""", emptyMap(), emptyMap()),
+        )
+        val client = TpLinkStokLuciAuthenticationClient("192.168.0.1", transport)
+        client.login("admin", "admin")
+
+        // Mesma query nas duas chamadas -> mesmo tamanho de plaintext/ciphertext/base64 nas duas -> a
+        // unica variavel que pode mudar o `s=` entre elas e o `seq` ter avancado (ou nao) de uma
+        // chamada pra outra.
+        client.fetchAuthenticated("admin/status", "form=all&operation=read")
+        client.fetchAuthenticated("admin/status", "form=all&operation=read")
+
+        assertEquals(2, transport.capturedAuthenticatedSeqValues.size)
+        val (firstSeq, secondSeq) = transport.capturedAuthenticatedSeqValues
+        assertTrue(
+            "s= da segunda leitura autenticada deve avancar em relacao a primeira - bug da issue #125 " +
+                "reusava sempre o mesmo seq (nunca avancava), produzindo o MESMO s= em toda leitura da " +
+                "mesma sessao mesmo com corpo identico. primeiro=$firstSeq segundo=$secondSeq",
+            secondSeq > firstSeq,
+        )
+    }
 }

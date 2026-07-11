@@ -31,6 +31,20 @@ package com.nethal.core.model
  * Family, ver `TpLinkStokLuciDriverFamily.runNativeDiagnosticPing`. Shape de request/resultado
  * agnóstico de vendor em `NativeDiagnosticPingRequest`/`NativeDiagnosticPingResult`.
  *
+ * **`REBOOT_DEVICE`** (issues #95/#103): primeira capability de AÇÃO/escrita "genérica" do produto
+ * (fora do fluxo de autenticação) com execução real — reinicia o equipamento inteiro, não existe
+ * "reinício de WAN" isolado neste vocabulário (a UI/issue #95 fala em "reiniciar interface WAN"
+ * porque é o resultado prático percebido pelo usuário, mas todo roteador doméstico reinicia o
+ * equipamento inteiro para restabelecer a WAN — não há endpoint de reinício seletivo de interface
+ * em nenhum protocolo mapeado até aqui). Capability já existente no vocabulário oficial (não
+ * inventada nesta rodada). Flui por `DriverFamily.executeAction(id)`/`CapabilityEngine.executeAction`
+ * (issue #103) — o mesmo mecanismo genérico de sessão de `readCapability`, mas para ação. Decisão de
+ * produto do Rafael: implementação restrita ao driver TP-Link Archer C6
+ * (`TpLinkStokLuciDriverFamily`) nesta rodada — nunca no Archer C20 nem no Nokia G-1425G-B, mesmo
+ * que o desenho de driver permitisse tecnicamente nos dois. Exige confirmação explícita do usuário
+ * antes de executar, sem exceção (`/seguranca-nethal`) — responsabilidade da UI (`:feature:tools-
+ * reboot-wan`), o Core nunca executa sozinho.
+ *
  * **`MEASURE_LATENCY`** (issues #91/#99) e **`CHECK_PORT`** (issues #94/#100): mais radicais que
  * `RUN_NATIVE_DIAGNOSTIC_PING` — nem essas fluem pelo `DriverFamily.readCapability(id)`, mas
  * também **não são executadas pelo equipamento**: são probes TCP feitas pelo próprio telefone
