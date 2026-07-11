@@ -3,8 +3,12 @@ package com.nethal.lab.ui.common
 import com.nethal.core.catalog.DriverFamilyRegistry
 import com.nethal.core.catalog.DriverRegistry
 import com.nethal.core.catalog.CompatibilityProfile
+import com.nethal.core.designsystem.theme.ThemeMode
+import com.nethal.core.designsystem.theme.ThemeModeRepository
 import com.nethal.feature.settings.SettingsViewModel
 import com.nethal.lab.FakeConsentRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.nethal.lab.ui.onboarding.BetaOptInViewModel
 import com.nethal.lab.ui.onboarding.WelcomeViewModel
 import org.junit.Assert.assertThrows
@@ -21,6 +25,7 @@ class NetHalViewModelFactoryTest {
 
     private val factory = NetHalViewModelFactory(
         consentRepository = FakeConsentRepository(),
+        themeModeRepository = FakeThemeModeRepository(),
         driverRegistry = object : DriverRegistry {
             override fun manifestVersion(): String = "test"
             override fun generatedAt(): String = "test"
@@ -57,4 +62,12 @@ class NetHalViewModelFactoryTest {
     }
 
     private class UnknownProbeViewModel : androidx.lifecycle.ViewModel()
+
+    private class FakeThemeModeRepository : ThemeModeRepository {
+        private val state = MutableStateFlow(ThemeMode.SYSTEM)
+        override fun observeThemeMode(): Flow<ThemeMode> = state
+        override suspend fun setThemeMode(mode: ThemeMode) {
+            state.value = mode
+        }
+    }
 }

@@ -8,6 +8,7 @@ import com.nethal.core.catalog.ManualIdentificationRepository
 import com.nethal.core.catalog.loadEmbeddedCatalogResource
 import com.nethal.core.consent.ConsentRepository
 import com.nethal.core.consent.ConsentScope
+import com.nethal.core.designsystem.theme.ThemeModeRepository
 import com.nethal.core.discovery.DefaultDiscoveryEngine
 import com.nethal.core.discovery.DefaultSsdpDiscoverer
 import com.nethal.core.discovery.DefaultUpnpIgdProbe
@@ -32,6 +33,8 @@ import com.nethal.lab.data.consent.consentDataStore
 import com.nethal.lab.data.discovery.AndroidNetworkEnvironmentReader
 import com.nethal.lab.data.telemetry.TelemetryDeviceIdDataStoreRepository
 import com.nethal.lab.data.telemetry.telemetryDataStore
+import com.nethal.lab.data.theme.ThemeModeDataStoreRepository
+import com.nethal.lab.data.theme.themeDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,6 +44,13 @@ import kotlinx.coroutines.launch
 class NetHalApplication : Application() {
 
     lateinit var consentRepository: ConsentRepository
+        private set
+
+    /**
+     * Preferência de tema (claro/escuro/sistema), issue #132. Observada no composition root
+     * (`MainActivity`) e escrita pelo seletor em Configurações (`SettingsViewModel`).
+     */
+    lateinit var themeModeRepository: ThemeModeRepository
         private set
 
     lateinit var networkEnvironmentReader: NetworkEnvironmentReader
@@ -109,6 +119,7 @@ class NetHalApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         consentRepository = ConsentDataStoreRepository(consentDataStore)
+        themeModeRepository = ThemeModeDataStoreRepository(themeDataStore)
 
         val telemetryConsentGranted = MutableStateFlow(false)
         applicationScope.launch {

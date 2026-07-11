@@ -6,6 +6,7 @@ import com.nethal.core.capability.CapabilityEngine
 import com.nethal.core.catalog.DriverFamilyRegistry
 import com.nethal.core.catalog.DriverRegistry
 import com.nethal.core.consent.ConsentRepository
+import com.nethal.core.designsystem.theme.ThemeModeRepository
 import com.nethal.feature.settings.SettingsViewModel
 import com.nethal.lab.ui.capabilities.CapabilitiesViewModel
 import com.nethal.lab.ui.capabilities.CapabilityItem
@@ -24,6 +25,7 @@ import com.nethal.lab.ui.report.ReportViewModel
  */
 class NetHalViewModelFactory(
     private val consentRepository: ConsentRepository,
+    private val themeModeRepository: ThemeModeRepository,
     private val driverRegistry: DriverRegistry,
     private val driverFamilyRegistry: DriverFamilyRegistry,
 ) : ViewModelProvider.Factory {
@@ -33,7 +35,7 @@ class NetHalViewModelFactory(
         return when (modelClass) {
             WelcomeViewModel::class.java -> WelcomeViewModel(consentRepository) as T
             BetaOptInViewModel::class.java -> BetaOptInViewModel(consentRepository) as T
-            SettingsViewModel::class.java -> SettingsViewModel(consentRepository) as T
+            SettingsViewModel::class.java -> SettingsViewModel(consentRepository, themeModeRepository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: $modelClass")
         }
     }
