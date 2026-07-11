@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.nethal.core.designsystem.theme.NetHalCyberColors
 
 /**
  * Estado "recurso indisponível" — componente reutilizável para qualquer ferramenta cuja
@@ -104,12 +104,13 @@ fun UnavailableResourceListItem(
     modifier: Modifier = Modifier,
     icon: @Composable () -> Unit = {},
 ) {
+    val colors = MaterialTheme.colorScheme
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(NetHalCyberColors.Surface)
-            .border(1.dp, NetHalCyberColors.Border, RoundedCornerShape(16.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.outline, RoundedCornerShape(16.dp))
             .clickable(onClickLabel = "$label, recurso indisponível", onClick = onClick)
             .alpha(0.4f)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -119,11 +120,11 @@ fun UnavailableResourceListItem(
         Box(modifier = Modifier.size(18.dp)) { icon() }
         Text(
             text = label,
-            color = NetHalCyberColors.TextPrimary,
+            color = colors.onBackground,
             fontSize = 13.sp,
             modifier = Modifier.weight(1f),
         )
-        ChevronRight(tint = NetHalCyberColors.TextTertiary, size = 20.dp)
+        ChevronRight(tint = colors.onSurfaceVariant, size = 20.dp)
     }
 }
 
@@ -141,6 +142,7 @@ fun UnavailableFeatureDialog(
     resolutionLabel: String? = null,
     onResolutionClick: (() -> Unit)? = null,
 ) {
+    val colors = MaterialTheme.colorScheme
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
@@ -152,20 +154,20 @@ fun UnavailableFeatureDialog(
             modifier = modifier
                 .widthIn(min = 280.dp, max = 340.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(NetHalCyberColors.SurfaceElevated)
-                .border(1.dp, NetHalCyberColors.Border, RoundedCornerShape(24.dp))
+                .background(colors.surfaceVariant)
+                .border(1.dp, colors.outline, RoundedCornerShape(24.dp))
                 .padding(20.dp),
         ) {
             Text(
                 text = title,
-                color = NetHalCyberColors.TextPrimary,
+                color = colors.onBackground,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = reason,
-                color = NetHalCyberColors.TextSecondary,
+                color = colors.onSurfaceVariant,
                 fontSize = 12.5.sp,
                 lineHeight = 18.sp,
             )
@@ -177,7 +179,7 @@ fun UnavailableFeatureDialog(
                 if (resolutionLabel != null && onResolutionClick != null) {
                     Text(
                         text = resolutionLabel,
-                        color = NetHalCyberColors.Accent,
+                        color = colors.primary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
@@ -190,7 +192,7 @@ fun UnavailableFeatureDialog(
                 }
                 Text(
                     text = "Entendi",
-                    color = NetHalCyberColors.Accent,
+                    color = colors.primary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clickable(onClick = onDismissRequest),
