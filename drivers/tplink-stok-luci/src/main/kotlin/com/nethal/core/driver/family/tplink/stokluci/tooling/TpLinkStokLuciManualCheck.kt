@@ -59,29 +59,38 @@ fun main(args: Array<String>) {
 
     println("Conectando em $ip como \"$username\" (profile=${profile.profileId}, driverFamilyId=${profile.driverFamilyId})...")
     println("AVISO: protocolo corrigido a partir de evidência ao vivo (login real interceptado + leitura de JS do equipamento). A causa real do INVALID_CREDENTIALS/403 anterior foi identificada: o campo h= do envelope sign usa md5(username+password), nao md5(password). Reporte o resultado (sucesso ou falha) para atualizar o catálogo.")
+    println()
+    println("--- DIAGNOSTICO (issue #125 reaberta) ---")
+    println("Toda requisicao/resposta HTTP autenticada abaixo esta sendo logada em detalhe (URL completa,")
+    println("headers, corpo — sign=/data= ja cifrados, nunca credencial em claro — status, headers de resposta")
+    println("com destaque para Set-Cookie, e os primeiros 200 chars do corpo de resposta). Copie a saida")
+    println("completa deste terminal (sem editar) para a issue #125 apos rodar o teste.")
+    println("------------------------------------------")
 
     val driverFamilyRegistry = DriverFamilyRegistry(listOf(TpLinkStokLuciDriverFamilyFactory()))
-    val httpTransport = DefaultHttpTransport(
-        HttpTransportConfig(
-            connectTimeoutMillis = 10_000,
-            getReadTimeoutMillis = 20_000,
-            postReadTimeoutMillis = 20_000,
-            getAcceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            postAcceptHeader = "application/json, text/javascript, */*; q=0.01",
-            postContentType = "application/x-www-form-urlencoded; charset=UTF-8",
-            extraPostHeaders = mapOf(
-                "X-Requested-With" to "XMLHttpRequest",
+    val httpTransport = TpLinkStokLuciDiagnosticHttpTransport(
+        DefaultHttpTransport(
+            HttpTransportConfig(
+                connectTimeoutMillis = 10_000,
+                getReadTimeoutMillis = 20_000,
+                postReadTimeoutMillis = 20_000,
+                getAcceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                postAcceptHeader = "application/json, text/javascript, */*; q=0.01",
+                postContentType = "application/x-www-form-urlencoded; charset=UTF-8",
+                extraPostHeaders = mapOf(
+                    "X-Requested-With" to "XMLHttpRequest",
+                ),
+                postRefererProvider = { url ->
+                    val base = URL(url)
+                    val root = "${base.protocol}://${base.host}${if (base.port !in listOf(-1, 80, 443)) ":${base.port}" else ""}"
+                    if (url.contains("/cgi-bin/luci/;stok=/login")) {
+                        "$root/webpages/login.html?t=1693386897767"
+                    } else {
+                        "$root/webpages/index.1693386897767.html"
+                    }
+                },
+                followRedirectsManually = false,
             ),
-            postRefererProvider = { url ->
-                val base = URL(url)
-                val root = "${base.protocol}://${base.host}${if (base.port !in listOf(-1, 80, 443)) ":${base.port}" else ""}"
-                if (url.contains("/cgi-bin/luci/;stok=/login")) {
-                    "$root/webpages/login.html?t=1693386897767"
-                } else {
-                    "$root/webpages/index.1693386897767.html"
-                }
-            },
-            followRedirectsManually = false,
         ),
     )
 
