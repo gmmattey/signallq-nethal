@@ -23,7 +23,17 @@ data class NokiaGponDriverConfig(
     val gponStatusPath: String,
     /** Status da conexão WAN (IP externo, gateway, DNS) — usado por `READ_WAN_STATUS`. */
     val wanStatusPath: String,
-    /** Status da sessão PPP (quando a WAN é PPPoE) — sem capability correspondente hoje. */
+    /**
+     * Status da sessão PPP (quando a WAN é PPPoE) — sem capability correspondente hoje.
+     *
+     * A WebUI real acessa este mesmo caminho via `POST` com corpo criptografado (mesma cifra
+     * RSA+AES do login), recebendo `302 Found` de volta — verificado em captura de tráfego real
+     * (2026-07-11, `docs/drivers/compatibility-catalog.md`, changelog do dia). Nenhum código deste
+     * driver faz esse POST hoje (o legado `NokiaOntDriver.readSnapshot`/`NokiaManualCheck` fazem
+     * `GET` simples neste path, que já segue redirect via `NokiaHttpTransport`) — mas se este campo
+     * um dia ganhar uma capability real via `POST`, replicar o padrão POST-com-redirect da WebUI,
+     * não assumir que `HttpTransport.post()` segue redirect (hoje não segue).
+     */
     val pppStatusPath: String,
     /** Identificação do equipamento (modelo, fabricante, versões) — usado por `READ_DEVICE_INFO`. */
     val deviceInfoPath: String,

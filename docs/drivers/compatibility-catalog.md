@@ -232,6 +232,17 @@ Qualquer exibição ao usuário deve continuar usando `vendor: "Nokia"` (nome co
 profile); `manufacturer=ALCL` só é relevante como evidência de fingerprint interna ou nota de
 debugging, nunca como valor a expor na Tela de identificação do equipamento.
 
+**Gap de implementação corrigido (2026-07-11, Bruno)** — esta decisão estava documentada aqui desde
+sempre, mas `NokiaGponDriverFamily.capabilityResultFor(READ_DEVICE_INFO)` (código escrito depois,
+migração da issue #18) passava `vendor = info.manufacturer` direto — ou seja, `DeviceInfo.vendor`
+exposto para a Tela 4 do Lab mostraria `"ALCL"`, não `"Nokia"`, contrariando esta nota desde a
+migração. Achado ao cruzar evidência de captura real (Playwright/Codex,
+`C:\Temp\nokia-ont-playwright-capture\`) com o field map exaustivo do SignallQ
+(`docs_ai/technical/NOKIA_GPON_FIELD_MAP.md`, produto irmão) e a confirmação de que o driver de
+produção do SignallQ (`NokiaLocalDeviceMapper.kt`) faz o mesmo hardcode. Corrigido: `vendor = "Nokia"`
+hardcoded em `NokiaGponDriverFamily`, fixtures de teste atualizados para `Manufacturer="ALCL"` (valor
+real) provando que o hardcode funciona independente do campo bruto.
+
 ## Fontes consultadas — manifesto `2026.07.09` (2026-07-06, SIG-333, segunda execução)
 
 - **Nokia G-1425G-B**: segunda execução real de `nokiaManualCheck` contra a mesma unidade física
@@ -328,6 +339,98 @@ Revisão de segurança: Marisa, 2026-07-07 (passo 4 do plano de refatoração HA
 C20 como `TpLinkLegacyCgiDriverFamily`), aprovado com esta ressalva documentada.
 
 ## Changelog
+
+- **2026-07-11 (Bruno — sem issue rastreada, revisão do driver Nokia contra duas fontes de evidência
+  real: captura Playwright/Codex + field map do SignallQ)** — Revisão pedida sem bug reportado (Nokia
+  é considerado funcional hoje, diferente do C6/#125). Duas fontes cruzadas: (1) captura de tráfego
+  real do Codex via Playwright contra a unidade física (`192.168.1.254`),
+  `C:\Temp\nokia-ont-playwright-capture\` (`resumo.md`, `traffic.har`, `ui-inventory.md`,
+  `ui-write-matrix.md`); (2) `docs_ai/technical/NOKIA_GPON_FIELD_MAP.md` do SignallQ (produto irmão),
+  levantamento exaustivo de schema desta mesma unidade física, revalidado em 2026-07-10.
+
+  **1. Anomalia `POST 302 /index.cgi?getppp` (resumo.md) — investigada, sem bug real.** A WebUI real
+  faz essa chamada via `POST` com corpo `encrypted=1&ct=...&ck=...` (mesma cifra RSA+AES do login),
+  recebendo `302 Found → Location: /index.cgi`. Não é o mesmo caminho que o NetHAL usa: o único
+  código do driver que toca este endpoint é `NokiaOntDriver.readSnapshot()` (legado, **não
+  registrado em nenhuma `DriverFamilyFactory`, não usado em produção — só em `NokiaOntDriverTest`**)
+  e `NokiaManualCheck` (ferramenta de diagnóstico manual), e ambos fazem **GET** simples via
+  `fetchAuthenticated`, não o POST criptografado que a WebUI faz. `NokiaGponDriverFamily` (o caminho
+  real, usado pelo `CapabilityEngine`) nem declara esta capability — `pppStatusPath` existe no
+  `driverConfig` mas está deliberadamente "sem capability correspondente hoje" (comentário já
+  existente em `NokiaGponDriverConfig.kt`). Não existe hoje nenhum POST autenticado no driver Nokia
+  além de `login.cgi` (tratado por status code, não por generic redirect-follow) — não há chamador
+  real que precise de `HttpTransport.post()` seguir redirect, então **não generalizei
+  `HttpTransport.post()`** (evita risco desnecessário ao TP-Link, que compartilha o mesmo transporte).
+  Registrado como precedente para quando uma futura capability de escrita (ex. NTP, achado 3 abaixo)
+  precisar seguir esse mesmo padrão POST-com-redirect.
+
+  **2. Superfície de tela/escrita maior que as capabilities atuais (`ui-inventory.md`/
+  `ui-write-matrix.md`)** — mapeou WAN IPv6, Statistics, Voice Information, Firewall, MAC/IP/URL
+  Filter, Parental Control, DMZ/ALG, Port Forwarding/Triggering, DDNS, NTP, UPnP/DLNA, troca de
+  senha, Device Management (alias), Reboot, Factory Default, Diagnostics (ping/traceroute rodado do
+  próprio ONT) e Log. Nenhuma capability nova implementada nesta rodada (fora de escopo) — candidatos
+  registrados para o Rafael priorizar depois:
+  - `diag.cgi?ping` — ping/traceroute rodado do próprio equipamento (fora da Wi-Fi do celular),
+    valioso para isolar ONT↔Internet de celular↔ONT. Mesmo achado já documentado
+    independentemente por `NOKIA_GPON_FIELD_MAP.md` (oportunidade #4).
+  - Status de porta LAN Ethernet com erro/velocidade negociada — parcialmente já coberto por
+    `READ_LAN_PORT_STATUS` (issue #30); ver achado 4 abaixo sobre o que falta.
+  - Contadores de erro Wi-Fi por rádio (`X_ASB_COM_RxErrors`/`RxDrops`/`TxErrors`/`TxDrops`) — sem
+    capability equivalente hoje.
+  - `mem_info`/`cpu_temperatureinfo` do próprio ONT — saúde do equipamento, não do sinal.
+  - `meshStatus`/`meshBackhaulStatus` — só relevante com extensores Nokia pareados.
+  - Reboot/Factory Default — ação destrutiva, mapeada só como candidato futuro, nunca automática.
+
+  **3. Prova de escrita real em NTP (`write-test-ntp*.json`, `POST /sntp.cgi?post_glb`)** — mesma
+  categoria de achado do C6 (LED write): evidência real e reversível de que escrita funciona neste
+  equipamento (`ntpEnabled` alternado e revertido, confirmado em `COMO-REPETIR.md`). **Não
+  implementado** — escrita continua restrita ao C6 por decisão de produto; registrado aqui só como
+  candidato futuro de capability de escrita (`SET_NTP_ENABLED` ou equivalente), pendente de decisão
+  do Rafael antes de qualquer implementação.
+
+  **4. Cross-check `NOKIA_GPON_FIELD_MAP.md` vs. parser NetHAL — um bug real de mapeamento
+  corrigido, uma suspeita registrada sem fix.**
+  - **Corrigido:** `DeviceInfo.vendor` do Nokia G-1425G-B vinha do campo bruto `Manufacturer`
+    (`"ALCL"` no firmware real, não `"Nokia"`) em `NokiaGponDriverFamily.capabilityResultFor`
+    (código da migração #18, 2026-07-10) — contrariando a nota que já existia neste próprio
+    documento ("Nota de mapeamento — `manufacturer` real (`ALCL`) vs. nome comercial (`Nokia`)",
+    confirmada por teste real desde o manifesto `2026.07.09`/SIG-333) dizendo explicitamente que a
+    exibição ao usuário deve usar `"Nokia"`, nunca o campo bruto. Confirmado por segunda fonte
+    independente: `NokiaLocalDeviceMapper.kt` do SignallQ faz o mesmo hardcode `vendor = "Nokia"`.
+    Corrigido para hardcode explícito, fixtures de teste atualizadas para `Manufacturer="ALCL"` (não
+    mais `"Nokia"`) para o teste realmente provar a correção. Ver detalhe na nota de mapeamento acima.
+  - **Registrado, não corrigido — precisa de `nokiaManualCheck` real antes de qualquer mudança de
+    código:** `NokiaResponseParser.parseConnectedClients` (Nokia) lê uma tabela HTML
+    (`<table>`/`<tr>`/`<td>` com headers "Status"/"Connection Type"/"Device Name"/etc.) de
+    `/lan_status.cgi?wlan`. O field map do SignallQ (revalidado em 2026-07-10 contra a mesma unidade
+    física) documenta que o conteúdo real desta página são objetos JS (`device_cfg[]`/`alias_cfg[]`),
+    **sem menção a nenhuma tabela HTML** — e o parser de clientes do SignallQ
+    (`NokiaModemParser.parseClientes`, também 2026-07-10) lê exatamente esses objetos JS, não HTML.
+    Isso é uma pista plausível para a falha não resolvida do manifesto `2026.07.22`/changelog
+    2026-07-08 (os 5 endpoints, incluindo leitura de clientes, retornaram corpo que o parser não
+    conseguiu interpretar). Contra isso: a fixture de teste do NetHAL (`sampleHomeNetworkingHtml()`,
+    commit original do driver, 2026-07-06) usa nomes reais de dispositivo (`"Notebook da TIM"`) que
+    **ainda aparecem hoje** na captura real do Codex (`ui-inventory.md`, tela Device Management) — ou
+    seja, pode ser que a página sirva tanto uma tabela HTML renderizada quanto os objetos JS ao mesmo
+    tempo, e o parser atual esteja correto. **Não tenho evidência definitiva de nenhum dos dois
+    lados** (a captura de tráfego desta sessão não incluiu o corpo bruto de `lan_status.cgi?wlan`) —
+    por isso não toquei no parser. Próximo passo recomendado: rodar `nokiaManualCheck` e comparar o
+    corpo bruto real de `/lan_status.cgi?wlan` contra o que `parseConnectedClients` espera, mesmo
+    protocolo de investigação já usado nas entradas anteriores deste changelog (nunca decidir
+    mudança de parser sem essa confirmação).
+
+  **Nenhuma outra divergência de campo encontrada** entre `NOKIA_GPON_FIELD_MAP.md` e
+  `NokiaResponseParser`/`NokiaModels.kt` para as 6 capabilities hoje suportadas
+  (`READ_WAN_STATUS`/`READ_DEVICE_INFO`/`READ_CONNECTED_CLIENTS`/`READ_SIGNAL`/
+  `READ_GPON_ERROR_COUNTERS`/`READ_LAN_PORT_STATUS`) além dos dois achados acima — os nomes de campo
+  usados (`RXPower`/`TXPower`/`SupplyVottage`/`FECError`/`HECError`/`DropPackets`/`lan_ether[]`/
+  `ModelName`/`SerialNumber`/`SoftwareVersion`/`HardwareVersion`/`UpTime`) batem com o levantamento do
+  SignallQ. `WanStatus` do core (`ipv4Address` só) não expõe gateway/DNS/VLAN/PPPoE que o parser já
+  extrai em `NokiaWanStatus` — não é bug, é limitação de vocabulário público (`core/model`), fora de
+  escopo desta rodada, mesma categoria dos achados 2/3 acima.
+
+  **Estágio do profile:** `READ_ONLY_ALPHA` mantido, sem promoção (não é decisão desta rodada,
+  `/ciclo-vida-driver`). Nenhuma capability nova, nenhuma escrita implementada.
 
 - **2026-07-11 (Bruno — issue #125, correção real do contador `seq` do envelope `sign` em
   `tplink-stok-luci`)** — Investigação anterior (mesmo dia, entrada abaixo) tinha levantado a
