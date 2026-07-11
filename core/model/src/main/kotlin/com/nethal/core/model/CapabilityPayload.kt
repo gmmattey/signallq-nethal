@@ -37,4 +37,14 @@ sealed interface CapabilityPayload {
 
     /** Payload de `READ_LAN_PORT_STATUS` (issue #30) — primeiro parser estruturado real veio de `NokiaGponDriverFamily`. */
     data class LanPorts(val status: LanPortStatusList) : CapabilityPayload
+
+    /**
+     * Payload de `READ_MESH_TOPOLOGY` (issue #32) — primeiro parser real: `TpLinkStokLuciDriverFamily`
+     * / `admin/onemesh_network?form=mesh_topology`. Nome do case colide com o nome do tipo, mesmo
+     * caso de [DeviceInfo] acima.
+     */
+    data class MeshTopology(val topology: com.nethal.core.model.MeshTopology) : CapabilityPayload
+
+    /** Payload de `READ_DOS_PROTECTION_THRESHOLDS` (issue #34) — primeiro parser real: `TpLinkStokLuciDriverFamily` / `admin/security_settings?form=dos_setting`. */
+    data class DosProtectionThresholds(val thresholds: com.nethal.core.model.DosProtectionThresholds) : CapabilityPayload
 }

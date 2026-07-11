@@ -28,6 +28,8 @@ fun capabilityLabel(id: CapabilityId): String = when (id) {
     CapabilityId.READ_MEMORY -> "Uso de memória"
     CapabilityId.READ_SIGNAL -> "Sinal"
     CapabilityId.READ_MESH_STATUS -> "Status de mesh"
+    CapabilityId.READ_MESH_TOPOLOGY -> "Topologia mesh"
+    CapabilityId.READ_DOS_PROTECTION_THRESHOLDS -> "Proteção contra DoS"
     CapabilityId.READ_GPON_ERROR_COUNTERS -> "Contadores de erro GPON"
     CapabilityId.READ_LAN_PORT_STATUS -> "Status das portas LAN"
     CapabilityId.SET_WIFI_SSID -> "Alterar nome da rede (SSID)"
@@ -38,6 +40,10 @@ fun capabilityLabel(id: CapabilityId): String = when (id) {
     CapabilityId.SET_DNS -> "Alterar DNS"
     CapabilityId.REBOOT_DEVICE -> "Reiniciar"
     CapabilityId.RESTART_WIFI -> "Reiniciar Wi-Fi"
+    // Capability de AÇÃO (dispara teste real no equipamento), não leitura -- rótulo aqui é só
+    // para a exaustividade do enum/vocabulário de exibição; a Tela 4 ainda não tem fluxo de
+    // execução de ação, ver KDoc de CapabilityId.RUN_NATIVE_DIAGNOSTIC_PING no core.
+    CapabilityId.RUN_NATIVE_DIAGNOSTIC_PING -> "Ping nativo do equipamento"
 }
 
 /** Rótulo em português de [CapabilityState] — mesmo vocabulário do exemplo da spec §11 ("disponível", "requer login", "experimental"). */
@@ -139,5 +145,22 @@ fun capabilityPayloadSummary(payload: CapabilityPayload): String = when (payload
                 "porta ${port.portNumber}: $state, $speed"
             }
         }
+    }
+    is CapabilityPayload.MeshTopology -> {
+        val topology = payload.topology
+        val clientCount = topology.clients.size
+        val router = listOfNotNull(topology.routerModel, topology.routerName).joinToString(" ").ifBlank { "roteador não identificado" }
+        val satellites = if (topology.satelliteNodeCount > 0) ", ${topology.satelliteNodeCount} extensor(es)" else ""
+        "$router: $clientCount cliente(s) na malha$satellites"
+    }
+    is CapabilityPayload.DosProtectionThresholds -> {
+        val t = payload.thresholds
+        fun describe(label: String, threshold: com.nethal.core.model.DosProtectionThreshold): String {
+            val low = threshold.low?.toString() ?: "?"
+            val middle = threshold.middle?.toString() ?: "?"
+            val high = threshold.high?.toString() ?: "?"
+            return "$label $low/$middle/$high"
+        }
+        listOf(describe("ICMP", t.icmp), describe("SYN", t.syn), describe("UDP", t.udp)).joinToString("; ")
     }
 }

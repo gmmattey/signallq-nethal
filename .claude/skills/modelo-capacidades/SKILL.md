@@ -34,6 +34,8 @@ READ_SIGNAL
 READ_MESH_STATUS
 READ_GPON_ERROR_COUNTERS
 READ_LAN_PORT_STATUS
+READ_MESH_TOPOLOGY
+READ_DOS_PROTECTION_THRESHOLDS
 
 SET_WIFI_SSID
 SET_WIFI_PASSWORD
@@ -43,7 +45,12 @@ SET_WIFI_ENABLED
 SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
+RUN_NATIVE_DIAGNOSTIC_PING
 ```
+
+`RUN_NATIVE_DIAGNOSTIC_PING` (issues #23/#24) é classificada como **ação**, não leitura pura —
+dispara um teste real no equipamento. Restrita ao driver TP-Link Archer C6 (issue #26); a versão
+Nokia (issue #25) fica pausada em backlog até revisão de segurança separada.
 
 Nomenclatura alternativa normalizada por verbo/objeto (usada em análises de arquitetura, `docs/architecture/driver-adoption-strategy.md`): `wan.status.read`, `wifi.ssid.write`, `clients.list.read`, `system.reboot.write` etc. As duas notações representam o mesmo conceito — escolher uma e manter consistência dentro do mesmo componente.
 

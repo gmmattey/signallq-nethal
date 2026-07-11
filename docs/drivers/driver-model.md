@@ -40,6 +40,8 @@ READ_SIGNAL
 READ_MESH_STATUS
 READ_GPON_ERROR_COUNTERS
 READ_LAN_PORT_STATUS
+READ_MESH_TOPOLOGY
+READ_DOS_PROTECTION_THRESHOLDS
 
 SET_WIFI_SSID
 SET_WIFI_PASSWORD
@@ -49,6 +51,7 @@ SET_WIFI_ENABLED
 SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
+RUN_NATIVE_DIAGNOSTIC_PING
 ```
 
 `READ_GPON_ERROR_COUNTERS` e `READ_LAN_PORT_STATUS` foram adicionadas ao vocabulário em 2026-07-11
@@ -60,6 +63,28 @@ ganhou capability nova — foi estendida (`SignalStatus.rxPowerLowerThresholdDbm
 genérica (não vendor-specific): status físico por porta Ethernet é uma necessidade de diagnóstico
 comum a qualquer equipamento com portas LAN gerenciáveis, mesmo que hoje só o driver Nokia
 G-1425G-B tenha parser real. Primeiro (e único, nesta rodada) caso real de ambas: `NokiaGponDriverFamily`.
+
+**`READ_MESH_TOPOLOGY`** (issue #32) — capability nova, distinta de `READ_MESH_STATUS`: grafo de
+nós mesh + clientes por nó (não um enum de status). Complementar a `READ_CONNECTED_CLIENTS`.
+Primeira implementação real: `TpLinkStokLuciDriverFamily`, `admin/onemesh_network?form=mesh_topology`.
+
+**`READ_WIFI_RADIOS`** (issue #33) — já existia no vocabulário sem implementação real; passou a
+carregar canal em uso (`currentChannel`) e potência de transmissão (`txPower`) por rádio, no mesmo
+`WifiRadio`/`CapabilityPayload.Wifi` já usado por `READ_WIFI_STATUS`. Decisão registrada: não criar
+uma terceira capability para o mesmo dado.
+
+**`READ_DOS_PROTECTION_THRESHOLDS`** (issue #34) — leitura pura de configuração de segurança já
+existente no equipamento (thresholds de rate-limit ICMP/SYN/UDP), sem alterar nada.
+
+**`RUN_NATIVE_DIAGNOSTIC_PING`** (Feat #23, vocabulário na Task #24) — classificada como **AÇÃO**,
+não leitura pura: dispara um teste de ping real a partir do próprio equipamento. Shape de
+request/resultado agnóstico de vendor (`NativeDiagnosticPingRequest`/`NativeDiagnosticPingResult`,
+`core/model`). Implementação restrita ao driver TP-Link Archer C6 nesta rodada (issue #26,
+`admin/diag?form=diag`) — decisão de produto do Rafael. A versão Nokia (issue #25,
+`diag.cgi?ping`) fica pausada em backlog até revisão de segurança separada liberar. Não flui pelo
+`DriverFamily.readCapability(id)`/`CapabilityEngine` genérico (hoje estritamente `READ_ONLY`, sem
+parâmetro de request) — cada Driver Family que implementar expõe um método dedicado, ver
+`TpLinkStokLuciDriverFamily.runNativeDiagnosticPing`.
 
 ## Catálogo de compatibilidade (Driver Registry)
 

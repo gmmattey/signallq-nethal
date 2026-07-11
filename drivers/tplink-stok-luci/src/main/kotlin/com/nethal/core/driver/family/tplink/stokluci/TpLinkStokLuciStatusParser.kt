@@ -64,12 +64,26 @@ internal object TpLinkStokLuciStatusParser {
         val channelKey: String,
         val band: TpLinkStokLuciWifiBand,
         val guest: Boolean,
+        /** `null` para rádios sem campo de canal-em-uso/potência confirmado (rede de convidados). */
+        val currentChannelKey: String? = null,
+        val txPowerKey: String? = null,
     )
 
-    /** `main-2g`/`main-5g` confirmados por evidência ao vivo; `guest-2g`/`guest-5g` idem para o SSID (canal por simetria, não confirmado). */
+    /**
+     * `main-2g`/`main-5g` confirmados por evidência ao vivo; `guest-2g`/`guest-5g` idem para o SSID
+     * (canal por simetria, não confirmado). `currentChannelKey`/`txPowerKey` (issue #33) só
+     * declarados para os rádios principais — campo de campo de canal-em-uso/potência de convidados
+     * não documentado em `TPLINK_ARCHER_ROUTER_FIELD_MAP.md`.
+     */
     private val radioSpecs: List<RadioSpec> = listOf(
-        RadioSpec("main-2g", "wireless_2g_ssid", "wireless_2g_channel", TpLinkStokLuciWifiBand.GHZ_2_4, guest = false),
-        RadioSpec("main-5g", "wireless_5g_ssid", "wireless_5g_channel", TpLinkStokLuciWifiBand.GHZ_5, guest = false),
+        RadioSpec(
+            "main-2g", "wireless_2g_ssid", "wireless_2g_channel", TpLinkStokLuciWifiBand.GHZ_2_4, guest = false,
+            currentChannelKey = "wireless_2g_current_channel", txPowerKey = "wireless_2g_txpower",
+        ),
+        RadioSpec(
+            "main-5g", "wireless_5g_ssid", "wireless_5g_channel", TpLinkStokLuciWifiBand.GHZ_5, guest = false,
+            currentChannelKey = "wireless_5g_current_channel", txPowerKey = "wireless_5g_txpower",
+        ),
         RadioSpec("guest-2g", "guest_2g_ssid", "guest_2g_channel", TpLinkStokLuciWifiBand.GHZ_2_4, guest = true),
         RadioSpec("guest-5g", "guest_5g_ssid", "guest_5g_channel", TpLinkStokLuciWifiBand.GHZ_5, guest = true),
     )
@@ -78,14 +92,27 @@ internal object TpLinkStokLuciStatusParser {
         radioSpecs.mapNotNull { spec ->
             val ssid = stringField(fields, spec.ssidKey)
             val channel = intField(fields, spec.channelKey)
-            if (ssid == null && channel == null) return@mapNotNull null
+            val currentChannel = spec.currentChannelKey?.let { intField(fields, it) }
+            val txPower = spec.txPowerKey?.let { txPowerField(fields, it) }
+            if (ssid == null && channel == null && currentChannel == null && txPower == null) return@mapNotNull null
             TpLinkStokLuciWifiRadio(
                 id = spec.id,
                 band = spec.band,
                 guestNetwork = spec.guest,
                 ssid = ssid,
                 channel = channel,
+                currentChannel = currentChannel,
+                txPower = txPower,
             )
+        }
+
+    private fun txPowerField(obj: JsonObject, key: String): TpLinkStokLuciTxPower? =
+        when (stringField(obj, key)?.lowercase()) {
+            "high" -> TpLinkStokLuciTxPower.HIGH
+            "middle", "medium" -> TpLinkStokLuciTxPower.MIDDLE
+            "low" -> TpLinkStokLuciTxPower.LOW
+            null -> null
+            else -> TpLinkStokLuciTxPower.UNKNOWN
         }
 
     private fun parseLanStatus(fields: JsonObject): TpLinkStokLuciLanStatus? {

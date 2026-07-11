@@ -355,6 +355,8 @@ READ_SIGNAL
 READ_MESH_STATUS
 READ_GPON_ERROR_COUNTERS
 READ_LAN_PORT_STATUS
+READ_MESH_TOPOLOGY
+READ_DOS_PROTECTION_THRESHOLDS
 
 SET_WIFI_SSID
 SET_WIFI_PASSWORD
@@ -364,7 +366,12 @@ SET_WIFI_ENABLED
 SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
+RUN_NATIVE_DIAGNOSTIC_PING
 ```
+
+`RUN_NATIVE_DIAGNOSTIC_PING` é classificada como ação (dispara um teste real no equipamento), não
+leitura pura — ver `docs/drivers/driver-model.md` para o detalhe da decisão e do shape de
+request/resultado.
 
 Cada capability deve ter estado:
 

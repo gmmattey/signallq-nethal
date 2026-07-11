@@ -31,6 +31,29 @@ data class TpLinkStokLuciDriverConfig(
     val statusReadPath: String,
     /** Query string fixa (sem `?`) anexada a [statusReadPath], ex.: `"form=all&operation=read"`. */
     val statusReadQuery: String,
+    /**
+     * Caminho relativo da topologia mesh (issue #32) — `admin/onemesh_network?form=mesh_topology`
+     * documentado em `TPLINK_ARCHER_ROUTER_FIELD_MAP.md`, sem captura byte a byte própria ainda
+     * (mesmo nível de confiança das demais leituras deste profile antes de validação ao vivo).
+     */
+    val meshTopologyPath: String,
+    /** Query string fixa anexada a [meshTopologyPath], ex.: `"form=mesh_topology&operation=read"`. */
+    val meshTopologyQuery: String,
+    /**
+     * Caminho relativo dos thresholds de proteção DoS (issue #34) —
+     * `admin/security_settings?form=dos_setting`.
+     */
+    val dosSettingPath: String,
+    /** Query string fixa anexada a [dosSettingPath], ex.: `"form=dos_setting&operation=read"`. */
+    val dosSettingQuery: String,
+    /**
+     * Caminho relativo do diagnóstico nativo (ping, issue #26) — `admin/diag?form=diag`. Capability
+     * de AÇÃO (`RUN_NATIVE_DIAGNOSTIC_PING`), não de leitura — ver
+     * [TpLinkStokLuciDriverFamily.runNativeDiagnosticPing].
+     */
+    val diagPath: String,
+    /** Query string fixa anexada a [diagPath], ex.: `"form=diag"`. */
+    val diagQuery: String,
 ) {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }

@@ -76,13 +76,25 @@ internal data class TpLinkStokLuciAuthKeys(
  */
 internal enum class TpLinkStokLuciWifiBand { GHZ_2_4, GHZ_5, UNKNOWN }
 
-/** Um rádio Wi-Fi (rede principal ou de convidados) — cobre `READ_WIFI_STATUS`. */
+/** Potência de transmissão bruta (`wireless_*_txpower`) — cobre `READ_WIFI_RADIOS` (issue #33). */
+internal enum class TpLinkStokLuciTxPower { HIGH, MIDDLE, LOW, UNKNOWN }
+
+/**
+ * Um rádio Wi-Fi (rede principal ou de convidados) — cobre `READ_WIFI_STATUS` e `READ_WIFI_RADIOS`
+ * (mesmo modelo interno, dois `CapabilityId` diferentes — ver KDoc de `CapabilityId.READ_WIFI_RADIOS`).
+ *
+ * `currentChannel`/`txPower` (issue #33) só têm evidência confirmada para os rádios principais
+ * (`wireless_2g_current_channel`/`wireless_2g_txpower` e equivalentes 5G) — nenhum campo análogo
+ * documentado para rede de convidados, por isso ficam `null` nesses radios de propósito.
+ */
 internal data class TpLinkStokLuciWifiRadio(
     val id: String,
     val band: TpLinkStokLuciWifiBand,
     val guestNetwork: Boolean,
     val ssid: String?,
     val channel: Int?,
+    val currentChannel: Int? = null,
+    val txPower: TpLinkStokLuciTxPower? = null,
 )
 
 /** Status de LAN (`lan_macaddr`/`lan_ipv4_ipaddr`) — cobre `READ_LAN_STATUS`. */
@@ -109,4 +121,57 @@ internal data class TpLinkStokLuciSnapshot(
     val lan: TpLinkStokLuciLanStatus?,
     val wan: TpLinkStokLuciWanStatus?,
     val connectedClients: List<TpLinkStokLuciConnectedClient>,
+)
+
+/**
+ * Um nó/cliente da topologia mesh (`mesh_nclient_list[]`) — cobre `READ_MESH_TOPOLOGY` (issue #32).
+ * `wireType` mantém o valor bruto do campo `wire_type`, sem interpretação própria (sem evidência ao
+ * vivo confirmando os valores possíveis).
+ */
+internal data class TpLinkStokLuciMeshNode(
+    val macAddress: String?,
+    val hostname: String?,
+    val ipAddress: String?,
+    val wireType: String?,
+    val guestNetwork: Boolean?,
+    val accessTimeEpochSeconds: Long?,
+)
+
+/** Topologia mesh completa (`admin/onemesh_network?form=mesh_topology`) — cobre `READ_MESH_TOPOLOGY`. */
+internal data class TpLinkStokLuciMeshTopology(
+    val routerModel: String?,
+    val routerName: String?,
+    val routerMacAddress: String?,
+    val clients: List<TpLinkStokLuciMeshNode>,
+    val satelliteNodeCount: Int,
+)
+
+/** Três níveis de rate-limit (`_low`/`_middle`/`_high`) de um tipo de tráfego. */
+internal data class TpLinkStokLuciDosThreshold(
+    val low: Int?,
+    val middle: Int?,
+    val high: Int?,
+)
+
+/** Thresholds de proteção DoS (`admin/security_settings?form=dos_setting`) — cobre `READ_DOS_PROTECTION_THRESHOLDS` (issue #34). */
+internal data class TpLinkStokLuciDosThresholds(
+    val icmp: TpLinkStokLuciDosThreshold,
+    val syn: TpLinkStokLuciDosThreshold,
+    val udp: TpLinkStokLuciDosThreshold,
+)
+
+/**
+ * Resultado bruto/best-effort do diagnóstico nativo de ping (`admin/diag?form=diag`) — cobre a
+ * capability de AÇÃO `RUN_NATIVE_DIAGNOSTIC_PING` (issue #26). Todos os campos numéricos são
+ * best-effort porque o formato exato do texto de `result` devolvido pelo equipamento ainda não tem
+ * confirmação por evidência ao vivo — [rawResultText] preserva sempre o texto original.
+ */
+internal data class TpLinkStokLuciDiagPingResult(
+    val packetsSent: Int?,
+    val packetsReceived: Int?,
+    val packetLossPercent: Double?,
+    val roundTripTimesMillis: List<Long>,
+    val averageRoundTripMillis: Double?,
+    val timedOut: Boolean,
+    val rawResultText: String?,
 )

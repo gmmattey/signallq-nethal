@@ -38,7 +38,7 @@ private fun fakeProfile(capabilities: List<CatalogCapabilityEntry>, confidenceSc
 
 class CapabilityCatalogViewTest {
 
-    // --- Catálogo real ativo (catalog-2026.07.27.json) ---
+    // --- Catálogo real ativo (catalog-2026.07.28.json) ---
 
     @Test
     fun `projects declared capabilities for every real profile in the active manifest`() {
@@ -94,7 +94,8 @@ class CapabilityCatalogViewTest {
         val c6Stok = registry.profiles().first { it.profileId == "tplink_archer_c6_stok_v1" }
         val declared = CapabilityCatalogView.declaredCapabilities(c6Stok)
 
-        assertEquals(7, declared.size)
+        // 7 originais + READ_WIFI_RADIOS/READ_MESH_TOPOLOGY/READ_DOS_PROTECTION_THRESHOLDS/RUN_NATIVE_DIAGNOSTIC_PING (issues #31-#34/#26).
+        assertEquals(11, declared.size)
         assertEquals(
             CapabilityState.EXPERIMENTAL,
             declared.first { it.id == CapabilityId.READ_WAN_STATUS }.state,
@@ -102,6 +103,14 @@ class CapabilityCatalogViewTest {
         assertEquals(
             CapabilityState.UNKNOWN,
             declared.first { it.id == CapabilityId.READ_DEVICE_INFO }.state,
+        )
+        assertEquals(
+            CapabilityState.EXPERIMENTAL,
+            declared.first { it.id == CapabilityId.READ_MESH_TOPOLOGY }.state,
+        )
+        assertEquals(
+            CapabilityState.UNKNOWN,
+            declared.first { it.id == CapabilityId.RUN_NATIVE_DIAGNOSTIC_PING }.state,
         )
         assertTrue(declared.all { it.reason != null })
     }

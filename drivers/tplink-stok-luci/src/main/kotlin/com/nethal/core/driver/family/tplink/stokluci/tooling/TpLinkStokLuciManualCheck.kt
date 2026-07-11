@@ -6,8 +6,10 @@ import com.nethal.core.catalog.loadEmbeddedCatalogResource
 import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciDriverFamily
 import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciDriverFamilyFactory
 import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciLoginOutcome
+import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciPingOutcome
 import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciSnapshotOutcome
 import com.nethal.core.driver.family.tplink.stokluci.TpLinkStokLuciStatusOutcome
+import com.nethal.core.model.NativeDiagnosticPingRequest
 import com.nethal.core.protocol.http.DefaultHttpTransport
 import com.nethal.core.protocol.http.HttpTransportConfig
 import kotlinx.coroutines.runBlocking
@@ -131,6 +133,47 @@ fun main(args: Array<String>) {
                 is TpLinkStokLuciSnapshotOutcome.Failure -> {
                     println("Falha na leitura estruturada: ${snapshotResult.reason} — ${snapshotResult.message}")
                 }
+            }
+
+            println()
+            println("Tentando leituras autenticadas via readCapability/session (issue #31-#34: topologia mesh, thresholds DoS)...")
+            val authResult = runBlocking { driver.authenticate(username, password) }
+            if (authResult is com.nethal.core.catalog.DriverFamilyAuthResult.Success) {
+                val mesh = runBlocking { driver.readCapability(com.nethal.core.model.CapabilityId.READ_MESH_TOPOLOGY) }
+                println("--- READ_MESH_TOPOLOGY ---")
+                println(mesh)
+                val dos = runBlocking { driver.readCapability(com.nethal.core.model.CapabilityId.READ_DOS_PROTECTION_THRESHOLDS) }
+                println("--- READ_DOS_PROTECTION_THRESHOLDS ---")
+                println(dos)
+                val radios = runBlocking { driver.readCapability(com.nethal.core.model.CapabilityId.READ_WIFI_RADIOS) }
+                println("--- READ_WIFI_RADIOS (canal em uso/potência) ---")
+                println(radios)
+                println("(copie o resultado — sucesso ou falha, mascarando SSID/MAC completo/IP público antes — para o catálogo de compatibilidade)")
+            } else {
+                println("authenticate() falhou para as leituras via session: $authResult")
+            }
+
+            println()
+            println("--- Diagnóstico nativo de ping (issue #26, RUN_NATIVE_DIAGNOSTIC_PING) — AÇÃO REAL no equipamento ---")
+            print("Rodar ping nativo agora? Alvo (ex.: 8.8.8.8) ou ENTER para pular: ")
+            val pingTarget = readlnOrNull()?.trim().orEmpty()
+            if (pingTarget.isNotBlank()) {
+                println("Disparando ping nativo contra \"$pingTarget\" a partir do próprio Archer C6 (admin/diag?form=diag)...")
+                val pingOutcome = runBlocking {
+                    driver.runNativeDiagnosticPing(username, password, NativeDiagnosticPingRequest(targetHost = pingTarget, packetCount = 4))
+                }
+                when (pingOutcome) {
+                    is TpLinkStokLuciPingOutcome.Success -> {
+                        println("--- Resultado do ping nativo ---")
+                        println(pingOutcome.result)
+                        println("(copie rawResultText para o catálogo — é a evidência do formato real de `result` deste firmware)")
+                    }
+                    is TpLinkStokLuciPingOutcome.Failure -> {
+                        println("Falha no ping nativo: ${pingOutcome.reason} — ${pingOutcome.message}")
+                    }
+                }
+            } else {
+                println("Ping nativo pulado.")
             }
         }
         is TpLinkStokLuciLoginOutcome.Failure -> {

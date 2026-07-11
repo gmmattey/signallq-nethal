@@ -291,18 +291,29 @@ internal class TpLinkStokLuciAuthenticationClient(
      * fazia login novo, então uma sessão nunca vivia tempo suficiente para expirar entre chamadas.
      */
     @Throws(IOException::class)
-    fun fetchAuthenticated(path: String, query: String): String {
-        val currentSession = session
-        check(currentSession != null) { "fetchAuthenticated chamado antes de login() bem-sucedido" }
-        val currentEncryptor = encryptorContext
-        check(currentEncryptor != null) { "fetchAuthenticated chamado sem contexto criptografico de sessao" }
+    fun fetchAuthenticated(path: String, query: String): String =
+        fetchAuthenticatedRaw(path, extractRequestQuery(query), extractRequestPlaintext(query))
 
-        val requestPlaintext = extractRequestPlaintext(query)
-        val requestQuery = extractRequestQuery(query)
+    /**
+     * Variante de [fetchAuthenticated] que aceita o corpo de requisição em texto plano diretamente
+     * ([bodyPlaintext]), em vez de derivá-lo de uma `query` combinada que só suporta `operation=`.
+     * Necessária para o diagnóstico nativo de ping (issue #26, `admin/diag?form=diag`): o passo de
+     * disparo (`operation=write`) carrega parâmetros adicionais (`type`, `ipaddr`, `count`,
+     * `pktsize`, `timeout`, `ttl`) que [fetchAuthenticated] descarta de propósito (só extrai
+     * `operation=` do corpo, mantendo o resto só na URL). Mesma criptografia/assinatura de sessão de
+     * [fetchAuthenticated] — extraído para reuso, não duplicado.
+     */
+    @Throws(IOException::class)
+    fun fetchAuthenticatedRaw(path: String, urlQuery: String, bodyPlaintext: String): String {
+        val currentSession = session
+        check(currentSession != null) { "fetchAuthenticatedRaw chamado antes de login() bem-sucedido" }
+        val currentEncryptor = encryptorContext
+        check(currentEncryptor != null) { "fetchAuthenticatedRaw chamado sem contexto criptografico de sessao" }
+
         val encryptedData = TpLinkStokLuciCrypto.aesCbcEncrypt(
             currentEncryptor.aesKey,
             currentEncryptor.aesIv,
-            requestPlaintext.toByteArray(Charsets.UTF_8),
+            bodyPlaintext.toByteArray(Charsets.UTF_8),
         )
         val dataBase64 = TpLinkStokLuciCrypto.base64Encode(encryptedData)
         val signPlaintext = TpLinkStokLuciCrypto.buildAuthenticatedSignPlaintext(
@@ -318,7 +329,7 @@ internal class TpLinkStokLuciAuthenticationClient(
         )
         val encodedData = java.net.URLEncoder.encode(dataBase64, "UTF-8")
         val requestBody = "sign=$signHex&data=$encodedData"
-        val url = "$baseUrl/cgi-bin/luci/;stok=${currentSession.stok}/$path?$requestQuery"
+        val url = "$baseUrl/cgi-bin/luci/;stok=${currentSession.stok}/$path?$urlQuery"
         val response = transport.post(url, requestBody, authenticatedHeaders(currentSession))
         if (response.statusCode == 401 || response.statusCode == 403) {
             throw TpLinkStokLuciLoginException(

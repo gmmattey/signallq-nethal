@@ -61,6 +61,9 @@ internal class FakeTpLinkStokLuciHttpTransport(
     var lastAuthenticatedRequestBody: String? = null
         private set
 
+    /** Corpo HTTP cru (`sign=...&data=<base64 cifrado>`) de TODAS as chamadas autenticadas desta sessão — [lastAuthenticatedRequestBody] só guarda a última, insuficiente para testes de duas chamadas (ex.: write+read do diagnóstico nativo de ping). Decifrar `data` com [lastCapturedAesKeyDigits]/[lastCapturedAesIvDigits] para inspecionar o texto plano real enviado. */
+    val authenticatedRequestBodies: MutableList<String> = mutableListOf()
+
     override fun get(url: String, extraHeaders: Map<String, String>): HttpTransportResponse =
         HttpTransportResponse(404, "", emptyMap(), emptyMap())
 
@@ -88,6 +91,7 @@ internal class FakeTpLinkStokLuciHttpTransport(
             }
             else -> {
                 lastAuthenticatedRequestBody = body
+                authenticatedRequestBodies.add(body)
                 when {
                     simulateRealServerStok != null -> {
                         authenticatedReadCountSinceLogin++

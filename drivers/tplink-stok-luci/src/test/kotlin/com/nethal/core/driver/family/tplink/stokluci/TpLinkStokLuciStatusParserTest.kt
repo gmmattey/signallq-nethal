@@ -118,6 +118,47 @@ class TpLinkStokLuciStatusParserTest {
     }
 
     @Test
+    fun `maps current channel and tx power for main radios only, issue 33`() {
+        val body = """
+            {
+              "success": true,
+              "data": {
+                "wireless_2g_ssid": "CasaLuiz_2G",
+                "wireless_2g_current_channel": 10,
+                "wireless_2g_txpower": "high",
+                "wireless_5g_ssid": "CasaLuiz_5G",
+                "wireless_5g_current_channel": 149,
+                "wireless_5g_txpower": "middle",
+                "guest_2g_ssid": "CasaLuiz_Convidados"
+              }
+            }
+        """.trimIndent()
+
+        val snapshot = TpLinkStokLuciStatusParser.parseSnapshot(body)
+
+        val main2g = snapshot.wifi.first { it.id == "main-2g" }
+        assertEquals(10, main2g.currentChannel)
+        assertEquals(TpLinkStokLuciTxPower.HIGH, main2g.txPower)
+
+        val main5g = snapshot.wifi.first { it.id == "main-5g" }
+        assertEquals(149, main5g.currentChannel)
+        assertEquals(TpLinkStokLuciTxPower.MIDDLE, main5g.txPower)
+
+        val guest2g = snapshot.wifi.first { it.id == "guest-2g" }
+        assertNull(guest2g.currentChannel)
+        assertNull(guest2g.txPower)
+    }
+
+    @Test
+    fun `unknown tx power text maps to UNKNOWN instead of throwing`() {
+        val body = """{"data":{"wireless_2g_ssid":"x","wireless_2g_txpower":"turbo"}}"""
+
+        val snapshot = TpLinkStokLuciStatusParser.parseSnapshot(body)
+
+        assertEquals(TpLinkStokLuciTxPower.UNKNOWN, snapshot.wifi.first { it.id == "main-2g" }.txPower)
+    }
+
+    @Test
     fun `accepts flat body without the data envelope`() {
         val flatBody = """
             {

@@ -16,6 +16,12 @@ class TpLinkStokLuciDriverFamilyTest {
     private fun realProfileConfig(): TpLinkStokLuciDriverConfig = TpLinkStokLuciDriverConfig(
         statusReadPath = "admin/status",
         statusReadQuery = "form=all&operation=read",
+        meshTopologyPath = "admin/onemesh_network",
+        meshTopologyQuery = "form=mesh_topology&operation=read",
+        dosSettingPath = "admin/security_settings",
+        dosSettingQuery = "form=dos_setting&operation=read",
+        diagPath = "admin/diag",
+        diagQuery = "form=diag",
     )
 
     @Test
@@ -127,12 +133,134 @@ class TpLinkStokLuciDriverFamilyTest {
         assertEquals(
             setOf(
                 com.nethal.core.model.CapabilityId.READ_WIFI_STATUS,
+                com.nethal.core.model.CapabilityId.READ_WIFI_RADIOS,
                 com.nethal.core.model.CapabilityId.READ_LAN_STATUS,
                 com.nethal.core.model.CapabilityId.READ_WAN_STATUS,
                 com.nethal.core.model.CapabilityId.READ_CONNECTED_CLIENTS,
+                com.nethal.core.model.CapabilityId.READ_MESH_TOPOLOGY,
+                com.nethal.core.model.CapabilityId.READ_DOS_PROTECTION_THRESHOLDS,
             ),
             TpLinkStokLuciDriverFamily.SUPPORTED_CAPABILITIES,
         )
+    }
+
+    @Test
+    fun `readCapability routes READ_MESH_TOPOLOGY to the mesh topology endpoint, not the status endpoint`() = runTest {
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            simulateRealServerStok = "tokABC",
+            statusResponse = com.nethal.core.protocol.http.HttpTransportResponse(
+                200,
+                """{"success":true,"data":{"model":"Archer A6 v2","mesh_nclient_list":[]}}""",
+                emptyMap(),
+                emptyMap(),
+            ),
+        )
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport, backoffMillis = { 0L })
+        driver.authenticate("admin", "secret")
+
+        val result = driver.readCapability(com.nethal.core.model.CapabilityId.READ_MESH_TOPOLOGY)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityReadResult.Success)
+        val payload = (result as com.nethal.core.catalog.CapabilityReadResult.Success).payload as com.nethal.core.model.CapabilityPayload.MeshTopology
+        assertEquals("Archer A6 v2", payload.topology.routerModel)
+        assertTrue(transport.postedUrls.last().contains("form=mesh_topology"))
+    }
+
+    @Test
+    fun `readCapability routes READ_DOS_PROTECTION_THRESHOLDS to the security settings endpoint`() = runTest {
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            simulateRealServerStok = "tokABC",
+            statusResponse = com.nethal.core.protocol.http.HttpTransportResponse(
+                200,
+                """{"success":true,"data":{"icmp_low":100}}""",
+                emptyMap(),
+                emptyMap(),
+            ),
+        )
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport, backoffMillis = { 0L })
+        driver.authenticate("admin", "secret")
+
+        val result = driver.readCapability(com.nethal.core.model.CapabilityId.READ_DOS_PROTECTION_THRESHOLDS)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityReadResult.Success)
+        val payload = (result as com.nethal.core.catalog.CapabilityReadResult.Success).payload as com.nethal.core.model.CapabilityPayload.DosProtectionThresholds
+        assertEquals(100, payload.thresholds.icmp.low)
+        assertTrue(transport.postedUrls.last().contains("form=dos_setting"))
+    }
+
+    @Test
+    fun `readCapability READ_WIFI_RADIOS reuses the status endpoint and carries current channel plus tx power`() = runTest {
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            simulateRealServerStok = "tokABC",
+            statusResponse = com.nethal.core.protocol.http.HttpTransportResponse(
+                200,
+                """{"success":true,"data":{"wireless_2g_ssid":"CasaLuiz_2G","wireless_2g_current_channel":10,"wireless_2g_txpower":"high"}}""",
+                emptyMap(),
+                emptyMap(),
+            ),
+        )
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport, backoffMillis = { 0L })
+        driver.authenticate("admin", "secret")
+
+        val result = driver.readCapability(com.nethal.core.model.CapabilityId.READ_WIFI_RADIOS)
+
+        assertTrue(result is com.nethal.core.catalog.CapabilityReadResult.Success)
+        val payload = (result as com.nethal.core.catalog.CapabilityReadResult.Success).payload as com.nethal.core.model.CapabilityPayload.Wifi
+        val main2g = payload.status.radios.first { it.id == "main-2g" }
+        assertEquals(10, main2g.currentChannel)
+        assertEquals(com.nethal.core.model.WifiTxPower.HIGH, main2g.txPower)
+        assertTrue(transport.postedUrls.last().contains("form=all"))
+    }
+
+    @Test
+    fun `runNativeDiagnosticPing logs in, writes the diag request then reads back the parsed result`() = runTest {
+        val resultText = "4 packets transmitted, 4 packets received, 0% packet loss\n" +
+            "round-trip min/avg/max = 10.0/11.0/12.0 ms"
+        val transport = FakeTpLinkStokLuciHttpTransport(
+            simulateRealServerStok = "tokABC",
+            statusResponse = com.nethal.core.protocol.http.HttpTransportResponse(
+                200,
+                """{"success":true,"data":{"result":${kotlinx.serialization.json.JsonPrimitive(resultText)}}}""",
+                emptyMap(),
+                emptyMap(),
+            ),
+        )
+        val driver = TpLinkStokLuciDriverFamily("192.168.0.1", realProfileConfig(), transport, backoffMillis = { 0L })
+
+        val outcome = driver.runNativeDiagnosticPing(
+            "admin",
+            "secret",
+            com.nethal.core.model.NativeDiagnosticPingRequest(targetHost = "8.8.8.8", packetCount = 4),
+        )
+
+        assertTrue(outcome is TpLinkStokLuciPingOutcome.Success)
+        val result = (outcome as TpLinkStokLuciPingOutcome.Success).result
+        assertEquals(4, result.packetsSent)
+        assertEquals(4, result.packetsReceived)
+        assertEquals(0.0, result.packetLossPercent)
+
+        // handshake (3) + write (1) + read (1) = 5.
+        assertEquals(5, transport.postCallCount)
+        assertEquals(2, transport.authenticatedRequestBodies.size)
+
+        val aesKey = transport.lastCapturedAesKeyDigits!!.toByteArray(Charsets.US_ASCII)
+        val aesIv = transport.lastCapturedAesIvDigits!!.toByteArray(Charsets.US_ASCII)
+        val writePlaintext = decryptRequestBody(transport.authenticatedRequestBodies[0], aesKey, aesIv)
+        assertTrue(writePlaintext.contains("operation=write"))
+        assertTrue(writePlaintext.contains("ipaddr=8.8.8.8"))
+        assertTrue(writePlaintext.contains("count=4"))
+
+        val readPlaintext = decryptRequestBody(transport.authenticatedRequestBodies[1], aesKey, aesIv)
+        assertEquals("operation=read", readPlaintext)
+    }
+
+    private fun decryptRequestBody(rawHttpBody: String, aesKey: ByteArray, aesIv: ByteArray): String {
+        val dataBase64 = java.net.URLDecoder.decode(
+            Regex("""data=([^&]+)""").find(rawHttpBody)!!.groupValues[1],
+            "UTF-8",
+        )
+        val decrypted = TpLinkStokLuciCrypto.aesCbcDecrypt(aesKey, aesIv, TpLinkStokLuciCrypto.base64Decode(dataBase64))
+        return String(decrypted, Charsets.UTF_8)
     }
 
     @Test

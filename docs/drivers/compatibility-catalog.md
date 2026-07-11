@@ -383,6 +383,39 @@ C20 como `TpLinkLegacyCgiDriverFamily`), aprovado com esta ressalva documentada.
   Issue #35 (backlog de campos secundários, itens 5-8 do mesmo levantamento) registrada como
   backlog — nenhuma implementação nesta rodada, conforme o próprio critério de aceite da issue.
 
+- **2026-07-11 (Bruno — capabilities de topologia/rádio/DoS e ping nativo no `tplink-stok-luci`,
+  issues #31-#34, #36, #24, #26)** — Novo manifesto `catalog-2026.07.28.json`
+  (`previousManifest: catalog-2026.07.27.json`, já com as capabilities novas do Nokia da entrada
+  acima — conflito de merge real com a PR #121 resolvido preservando as duas rodadas, não
+  descartando nenhuma). Quatro capabilities novas/reaproveitadas no profile
+  `tplink_archer_c6_stok_v1`, todas `EXPERIMENTAL` ou `UNKNOWN` (nenhuma promovida a `AVAILABLE`):
+  (1) `READ_WIFI_RADIOS` (issue #33) — capability já existente no vocabulário, sem implementação até
+  aqui; passa a carregar canal em uso/potência de transmissão por rádio, reaproveitando o mesmo
+  endpoint/payload de `READ_WIFI_STATUS` (decisão registrada: sem terceira capability). (2)
+  `READ_MESH_TOPOLOGY` (issue #32) — capability nova (`admin/onemesh_network?form=mesh_topology`),
+  distinta de `READ_MESH_STATUS` por ter shape de grafo, não enum de status. (3)
+  `READ_DOS_PROTECTION_THRESHOLDS` (issue #34) — capability nova, leitura pura de configuração de
+  segurança já existente (`admin/security_settings?form=dos_setting`); confirmação explícita da
+  Marisa sobre dispensa de tratamento de Safety Guard fica pendente no PR, não feita ainda. (4)
+  `RUN_NATIVE_DIAGNOSTIC_PING` (Feat #23, vocabulário definido na Task #24, implementado na #26) —
+  classificada como AÇÃO (não leitura), `admin/diag?form=diag`; implementação restrita a este driver
+  por decisão do Rafael, versão Nokia (issue #25) permanece pausada em backlog. Issue #36 registra
+  formalmente o backlog de baixa prioridade (RF avançado, double-NAT), sem implementação nesta
+  rodada. `driverConfig` do profile ganhou quatro pares novos de path/query
+  (`meshTopologyPath`/`meshTopologyQuery`, `dosSettingPath`/`dosSettingQuery`,
+  `diagPath`/`diagQuery`) — campos agora obrigatórios no schema Kotlin (`TpLinkStokLuciDriverConfig`),
+  não hardcoded no driver. **Regressão negativa encontrada nesta rodada**: duas tentativas reais de
+  validação ao vivo (`tplinkC6StokManualCheck` contra a unidade física do Luiz, 192.168.0.1)
+  mostraram login bem-sucedido seguido de HTTP 403 em TODA chamada autenticada seguinte, incluindo
+  `admin/status?form=all` (endpoint que este mesmo catálogo registrava como confirmado em
+  2026-07-07) — não é regressão de código desta rodada (mecanismo de `fetchAuthenticated` inalterado,
+  só ganhou `fetchAuthenticatedRaw` como extração sem mudança de comportamento; testes unitários com
+  fake de transporte continuam verdes). Nenhuma das quatro capabilities novas, nem as quatro já
+  `EXPERIMENTAL` antes desta rodada, puderam ser confirmadas contra hardware real — `fingerprintEvidence[]`
+  do profile registra a entrada completa; `confidenceScoreOverall` baixado de `0.75` para `0.65`.
+  Recomendação registrada: abrir Task `[BUG]` própria para investigar a causa raiz da regressão de
+  sessão antes de qualquer nova tentativa de validação ao vivo desta plataforma — fora do escopo
+  desta entrega.
 - **2026-07-10 (issue #19 — `authenticate()` real no `tplink-legacy-cgi`; `readCapability()` sai do
   estado "sempre `Unavailable`")** — Mesmo padrão de sessão gerenciada já usado por
   `TpLinkStokLuciDriverFamily`/issue #16: `TpLinkLegacyCgiDriverFamily` ganha `authenticate()` real

@@ -16,11 +16,18 @@ import com.nethal.core.model.CapabilityPayload
 import com.nethal.core.model.CapabilityState
 import com.nethal.core.model.ConnectedClient
 import com.nethal.core.model.ConnectedClientList
+import com.nethal.core.model.DosProtectionThreshold
+import com.nethal.core.model.DosProtectionThresholds
 import com.nethal.core.model.LanStatus
+import com.nethal.core.model.MeshTopology
+import com.nethal.core.model.MeshTopologyNode
+import com.nethal.core.model.NativeDiagnosticPingRequest
+import com.nethal.core.model.NativeDiagnosticPingResult
 import com.nethal.core.model.WanStatus
 import com.nethal.core.model.WifiBand
 import com.nethal.core.model.WifiRadio
 import com.nethal.core.model.WifiStatus
+import com.nethal.core.model.WifiTxPower
 import com.nethal.core.protocol.http.HttpTransport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -74,6 +81,29 @@ internal sealed interface TpLinkStokLuciSnapshotOutcome {
  * login bem-sucedido + leitura autenticada bruta de `admin/status?form=all`. Ver `ManualCheckRunner`
  * para o comando de teste manual e `docs/drivers/live-evidence/tplink-archer-c6-stok-v1.json` para a
  * evidência de hardware.
+ *
+ * **issues #31-#34 (topologia mesh, canal/potência real por rádio, thresholds DoS)**:
+ * [readCapability] passa a rotear entre três endpoints desta plataforma, não só o de status —
+ * `READ_MESH_TOPOLOGY` ([TpLinkStokLuciMeshTopologyParser], `admin/onemesh_network?form=mesh_topology`)
+ * e `READ_DOS_PROTECTION_THRESHOLDS` ([TpLinkStokLuciDosThresholdsParser],
+ * `admin/security_settings?form=dos_setting`) usam endpoints próprios
+ * ([TpLinkStokLuciDriverConfig.meshTopologyPath]/[TpLinkStokLuciDriverConfig.dosSettingPath]);
+ * `READ_WIFI_RADIOS` reaproveita o mesmo endpoint/payload de `READ_WIFI_STATUS` (mesma leitura,
+ * capability distinta — ver KDoc de `CapabilityId.READ_WIFI_RADIOS` no core). **REGRESSÃO
+ * encontrada em 2026-07-11**: tentativa de validação ao vivo real destas três leituras (mais o
+ * ping abaixo) foi bloqueada porque toda chamada autenticada desta unidade passou a falhar com
+ * HTTP 403, incluindo o endpoint de status já confirmado em 2026-07-07 — ver `fingerprintEvidence[]`
+ * do profile no catálogo para o detalhe; não é regressão introduzida por este código (o mecanismo de
+ * `fetchAuthenticated` não mudou, só ganhou [fetchAuthenticatedRaw] como extração sem mudança de
+ * comportamento).
+ *
+ * **issue #26 (RUN_NATIVE_DIAGNOSTIC_PING, TP-Link Archer C6 apenas)**: [runNativeDiagnosticPing]
+ * dispara um teste de ping real a partir do próprio equipamento (`admin/diag?form=diag`) —
+ * capability de AÇÃO, não leitura, classificada assim na Task #24. Restrita a este driver por
+ * decisão de produto do Rafael; a versão Nokia (issue #25) fica pausada em backlog até revisão de
+ * segurança separada liberar. Sem confirmação por evidência ao vivo do formato do resultado nem do
+ * fluxo write/read completo — mesma regressão de sessão acima bloqueou a validação real desta
+ * rodada.
  *
  * **issue #16 (Capability Engine com gerenciamento de sessão real)**: [readCapability] agora é uma
  * implementação real — primeira `DriverFamily` do NetHAL a sair do estado honestamente indisponível.
@@ -275,21 +305,46 @@ internal class TpLinkStokLuciDriverFamily(
             )
 
         return withContext(Dispatchers.IO) {
-            val rawBody = try {
-                client.fetchAuthenticated(config.statusReadPath, config.statusReadQuery)
-            } catch (e: TpLinkStokLuciLoginException) {
-                return@withContext if (e.reason == TpLinkStokLuciLoginFailureReason.SESSION_EXPIRED) {
+            when (id) {
+                CapabilityId.READ_MESH_TOPOLOGY ->
+                    when (val outcome = fetchRawOrError(client, config.meshTopologyPath, config.meshTopologyQuery, id)) {
+                        is RawFetchOutcome.Error -> outcome.result
+                        is RawFetchOutcome.Success -> meshTopologyResultFor(TpLinkStokLuciMeshTopologyParser.parse(outcome.rawBody))
+                    }
+                CapabilityId.READ_DOS_PROTECTION_THRESHOLDS ->
+                    when (val outcome = fetchRawOrError(client, config.dosSettingPath, config.dosSettingQuery, id)) {
+                        is RawFetchOutcome.Error -> outcome.result
+                        is RawFetchOutcome.Success -> dosThresholdsResultFor(TpLinkStokLuciDosThresholdsParser.parse(outcome.rawBody))
+                    }
+                else ->
+                    when (val outcome = fetchRawOrError(client, config.statusReadPath, config.statusReadQuery, id)) {
+                        is RawFetchOutcome.Error -> outcome.result
+                        is RawFetchOutcome.Success -> capabilityResultFor(id, TpLinkStokLuciStatusParser.parseSnapshot(outcome.rawBody))
+                    }
+            }
+        }
+    }
+
+    /** Resultado interno de uma leitura autenticada crua — usado por [readCapability] para rotear entre os endpoints desta plataforma sem duplicar o mesmo try/catch três vezes. */
+    private sealed interface RawFetchOutcome {
+        data class Success(val rawBody: String) : RawFetchOutcome
+        data class Error(val result: CapabilityReadResult) : RawFetchOutcome
+    }
+
+    private fun fetchRawOrError(client: TpLinkStokLuciAuthenticationClient, path: String, query: String, id: CapabilityId): RawFetchOutcome =
+        try {
+            RawFetchOutcome.Success(client.fetchAuthenticated(path, query))
+        } catch (e: TpLinkStokLuciLoginException) {
+            RawFetchOutcome.Error(
+                if (e.reason == TpLinkStokLuciLoginFailureReason.SESSION_EXPIRED) {
                     CapabilityReadResult.SessionExpired(reason = e.message ?: "sessão expirada ao ler $id")
                 } else {
                     CapabilityReadResult.Failure(reason = e.message ?: "falha inesperada ao ler $id", cause = e)
-                }
-            } catch (e: IOException) {
-                return@withContext CapabilityReadResult.Failure(reason = e.message ?: "falha de rede ao ler $id", cause = e)
-            }
-
-            capabilityResultFor(id, TpLinkStokLuciStatusParser.parseSnapshot(rawBody))
+                },
+            )
+        } catch (e: IOException) {
+            RawFetchOutcome.Error(CapabilityReadResult.Failure(reason = e.message ?: "falha de rede ao ler $id", cause = e))
         }
-    }
 
     /**
      * Traduz o [TpLinkStokLuciSnapshot] já parseado ([TpLinkStokLuciStatusParser]) para o vocabulário
@@ -302,7 +357,10 @@ internal class TpLinkStokLuciDriverFamily(
      * ausência de dado.
      */
     private fun capabilityResultFor(id: CapabilityId, snapshot: TpLinkStokLuciSnapshot): CapabilityReadResult = when (id) {
-        CapabilityId.READ_WIFI_STATUS -> if (snapshot.wifi.isEmpty()) {
+        // READ_WIFI_RADIOS (issue #33) reaproveita a mesma leitura/payload de READ_WIFI_STATUS —
+        // ver KDoc de CapabilityId.READ_WIFI_RADIOS para a decisão registrada de não criar uma
+        // terceira capability para canal-em-uso/potência de transmissão.
+        CapabilityId.READ_WIFI_STATUS, CapabilityId.READ_WIFI_RADIOS -> if (snapshot.wifi.isEmpty()) {
             CapabilityReadResult.Unavailable(reason = "Nenhum rádio Wi-Fi interpretado na resposta do equipamento.")
         } else {
             CapabilityReadResult.Success(
@@ -319,6 +377,14 @@ internal class TpLinkStokLuciDriverFamily(
                                 },
                                 ssid = radio.ssid,
                                 channel = radio.channel,
+                                currentChannel = radio.currentChannel,
+                                txPower = when (radio.txPower) {
+                                    TpLinkStokLuciTxPower.HIGH -> WifiTxPower.HIGH
+                                    TpLinkStokLuciTxPower.MIDDLE -> WifiTxPower.MIDDLE
+                                    TpLinkStokLuciTxPower.LOW -> WifiTxPower.LOW
+                                    TpLinkStokLuciTxPower.UNKNOWN -> WifiTxPower.UNKNOWN
+                                    null -> null
+                                },
                             )
                         },
                     ),
@@ -360,6 +426,111 @@ internal class TpLinkStokLuciDriverFamily(
         else -> CapabilityReadResult.Unavailable(reason = "TpLinkStokLuciDriverFamily não implementa parsing para $id nesta rodada.")
     }
 
+    /** Traduz [TpLinkStokLuciMeshTopologyParser] para `CapabilityPayload.MeshTopology` — cobre `READ_MESH_TOPOLOGY` (issue #32). Lista de clientes vazia é dado real (nenhum nó mesh reportado agora), não ausência de dado — mesmo raciocínio de `READ_CONNECTED_CLIENTS`. */
+    private fun meshTopologyResultFor(topology: TpLinkStokLuciMeshTopology): CapabilityReadResult = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_MESH_TOPOLOGY, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.MeshTopology(
+            MeshTopology(
+                routerModel = topology.routerModel,
+                routerName = topology.routerName,
+                routerMacAddress = topology.routerMacAddress,
+                clients = topology.clients.map { node ->
+                    MeshTopologyNode(
+                        macAddress = node.macAddress,
+                        hostname = node.hostname,
+                        ipAddress = node.ipAddress,
+                        wireType = node.wireType,
+                        guestNetwork = node.guestNetwork,
+                        accessTimeEpochSeconds = node.accessTimeEpochSeconds,
+                    )
+                },
+                satelliteNodeCount = topology.satelliteNodeCount,
+            ),
+        ),
+    )
+
+    /** Traduz [TpLinkStokLuciDosThresholdsParser] para `CapabilityPayload.DosProtectionThresholds` — cobre `READ_DOS_PROTECTION_THRESHOLDS` (issue #34), leitura pura de configuração já existente no equipamento. */
+    private fun dosThresholdsResultFor(thresholds: TpLinkStokLuciDosThresholds): CapabilityReadResult = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_DOS_PROTECTION_THRESHOLDS, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.DosProtectionThresholds(
+            DosProtectionThresholds(
+                icmp = DosProtectionThreshold(thresholds.icmp.low, thresholds.icmp.middle, thresholds.icmp.high),
+                syn = DosProtectionThreshold(thresholds.syn.low, thresholds.syn.middle, thresholds.syn.high),
+                udp = DosProtectionThreshold(thresholds.udp.low, thresholds.udp.middle, thresholds.udp.high),
+            ),
+        ),
+    )
+
+    /**
+     * Diagnóstico nativo de ping (issue #26, capability de AÇÃO `RUN_NATIVE_DIAGNOSTIC_PING`) —
+     * dispara um teste real no equipamento, não é leitura passiva. Por isso **não** passa pelo
+     * `readCapability(id)`/`CapabilityEngine` genérico (sem shape de request ali) — login novo a
+     * cada chamada, mesmo desenho de [readStatusRaw]/[readSnapshot] (métodos anteriores ao
+     * Capability Engine), escolhido de propósito aqui: esta é a primeira execução real desta
+     * capability contra hardware físico, e reaproveitar a sessão de [authenticatedClient] traria
+     * risco adicional sem necessidade (nenhuma outra capability desta rodada depende de ping
+     * encadeado numa mesma sessão).
+     *
+     * Protocolo assumido (sem confirmação por evidência ao vivo até a primeira execução real via
+     * `ManualCheckRunner`): (1) `operation=write` em `config.diagPath?form=diag` (mais parâmetros
+     * anexados via [config.diagQuery]) dispara o teste; (2) uma segunda chamada `operation=read` no
+     * mesmo endpoint lê o campo `result` já preenchido. Os dois passos usam a MESMA sessão
+     * (`TpLinkStokLuciAuthenticationClient` local desta chamada) — falha em qualquer um deles aborta
+     * sem tentar o outro.
+     */
+    suspend fun runNativeDiagnosticPing(
+        username: String,
+        password: String,
+        request: NativeDiagnosticPingRequest,
+    ): TpLinkStokLuciPingOutcome = withContext(Dispatchers.IO) {
+        val outcome = executeWithRetry(
+            maxAttempts = maxAttempts,
+            backoffMillis = backoffMillis,
+            loginExceptionType = TpLinkStokLuciLoginException::class.java,
+            onLoginFailure = { e ->
+                when (e.reason) {
+                    TpLinkStokLuciLoginFailureReason.INVALID_CREDENTIALS -> TpLinkStokLuciFailureReason.INVALID_CREDENTIALS
+                    TpLinkStokLuciLoginFailureReason.AUTH_ENDPOINT_UNAVAILABLE,
+                    TpLinkStokLuciLoginFailureReason.UNEXPECTED_RESPONSE,
+                    TpLinkStokLuciLoginFailureReason.SESSION_EXPIRED,
+                    -> null
+                }
+            },
+            classifyFinalFailure = ::classifyFailure,
+        ) {
+            val client = TpLinkStokLuciAuthenticationClient(host, transport)
+            client.login(username, password)
+
+            val writeBody = buildString {
+                append("operation=write")
+                append("&type=0") // 0 = ping, único tipo coberto nesta rodada (traceroute fora de escopo)
+                append("&ipaddr=").append(java.net.URLEncoder.encode(request.targetHost, "UTF-8"))
+                append("&count=").append(request.packetCount)
+                request.packetSizeBytes?.let { append("&pktsize=").append(it) }
+                request.timeoutMillis?.let { append("&timeout=").append(it) }
+                request.ttl?.let { append("&ttl=").append(it) }
+            }
+            client.fetchAuthenticatedRaw(config.diagPath, config.diagQuery, writeBody)
+            val readBody = client.fetchAuthenticatedRaw(config.diagPath, config.diagQuery, "operation=read")
+            TpLinkStokLuciDiagPingParser.parse(readBody)
+        }
+
+        when (outcome) {
+            is RetryOutcome.Success -> TpLinkStokLuciPingOutcome.Success(
+                NativeDiagnosticPingResult(
+                    packetsSent = outcome.value.packetsSent,
+                    packetsReceived = outcome.value.packetsReceived,
+                    packetLossPercent = outcome.value.packetLossPercent,
+                    roundTripTimesMillis = outcome.value.roundTripTimesMillis,
+                    averageRoundTripMillis = outcome.value.averageRoundTripMillis,
+                    timedOut = outcome.value.timedOut,
+                    rawResultText = outcome.value.rawResultText,
+                ),
+            )
+            is RetryOutcome.Failure -> TpLinkStokLuciPingOutcome.Failure(outcome.reason, outcome.error.message ?: outcome.error.toString())
+        }
+    }
+
     private fun classifyFailure(error: Throwable): TpLinkStokLuciFailureReason = when (classifyNetworkFailure(error)) {
         NetworkFailureReason.DEVICE_UNREACHABLE -> TpLinkStokLuciFailureReason.DEVICE_UNREACHABLE
         NetworkFailureReason.TIMEOUT -> TpLinkStokLuciFailureReason.TIMEOUT
@@ -369,17 +540,28 @@ internal class TpLinkStokLuciDriverFamily(
 
     companion object {
         /**
-         * Capabilities com parser estruturado real a partir de `admin/status?form=all`
-         * ([TpLinkStokLuciStatusParser]) — `READ_DEVICE_INFO`/`READ_FIRMWARE` ficam de fora porque
-         * nenhum campo de modelo/firmware foi confirmado nesse payload até aqui.
+         * Capabilities com parser estruturado real a partir de leituras autenticadas desta
+         * plataforma. `READ_DEVICE_INFO`/`READ_FIRMWARE` ficam de fora porque nenhum campo de
+         * modelo/firmware foi confirmado em nenhum endpoint até aqui. `RUN_NATIVE_DIAGNOSTIC_PING`
+         * (issue #26) fica de fora de propósito — é capability de AÇÃO, não flui por
+         * `readCapability(id)` (ver [runNativeDiagnosticPing]).
          */
         val SUPPORTED_CAPABILITIES: Set<CapabilityId> = setOf(
             CapabilityId.READ_WIFI_STATUS,
+            CapabilityId.READ_WIFI_RADIOS,
             CapabilityId.READ_LAN_STATUS,
             CapabilityId.READ_WAN_STATUS,
             CapabilityId.READ_CONNECTED_CLIENTS,
+            CapabilityId.READ_MESH_TOPOLOGY,
+            CapabilityId.READ_DOS_PROTECTION_THRESHOLDS,
         )
     }
+}
+
+/** Resultado de [TpLinkStokLuciDriverFamily.runNativeDiagnosticPing] (issue #26). */
+internal sealed interface TpLinkStokLuciPingOutcome {
+    data class Success(val result: NativeDiagnosticPingResult) : TpLinkStokLuciPingOutcome
+    data class Failure(val reason: TpLinkStokLuciFailureReason, val message: String) : TpLinkStokLuciPingOutcome
 }
 
 /**
