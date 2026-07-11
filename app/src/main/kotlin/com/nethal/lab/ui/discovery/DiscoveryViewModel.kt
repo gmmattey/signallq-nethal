@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nethal.core.discovery.DiscoveryEngine
 import com.nethal.core.discovery.NetworkEnvironmentReader
-import com.nethal.core.discovery.PrivateIpRanges
+import com.nethal.core.protocol.PrivateIpRanges
 import com.nethal.core.model.NetworkTarget
 import com.nethal.core.model.TargetRole
 import com.nethal.core.model.TargetSource

@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.nethal.lab.ui.common.NetHalViewModelFactory
 import com.nethal.lab.ui.navigation.NetHalNavHost
-import com.nethal.lab.ui.theme.NetHalLabTheme
+import com.nethal.core.designsystem.theme.NetHalLabTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

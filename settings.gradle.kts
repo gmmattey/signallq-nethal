@@ -16,5 +16,18 @@ dependencyResolutionManagement {
 
 rootProject.name = "NetHAL"
 
-include(":core")
+include(":core:model")
+include(":core:protocol")
+include(":core:catalog")
+include(":core:discovery")
+include(":core:fingerprint")
+include(":core:capability")
+include(":core:auth")
+include(":core:consent")
+include(":core:navigation")
+include(":core:designsystem")
+include(":drivers:nokia-gpon")
+include(":drivers:tplink-legacy-cgi")
+include(":drivers:tplink-stok-luci")
+include(":drivers:tplink-experimental")
 include(":app")

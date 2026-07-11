@@ -12,7 +12,6 @@ import com.nethal.core.discovery.DefaultSsdpDiscoverer
 import com.nethal.core.discovery.DefaultUpnpIgdProbe
 import com.nethal.core.discovery.DiscoveryEngine
 import com.nethal.core.discovery.NetworkEnvironmentReader
-import com.nethal.core.driver.family.defaultDriverFamilyRegistry
 import com.nethal.core.fingerprint.DefaultFingerprintEngine
 import com.nethal.core.fingerprint.DefaultHttpFingerprintProbe
 import com.nethal.core.fingerprint.FingerprintEngine

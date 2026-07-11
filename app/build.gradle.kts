@@ -44,7 +44,18 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":core:model"))
+    implementation(project(":core:protocol"))
+    implementation(project(":core:catalog"))
+    implementation(project(":core:consent"))
+    implementation(project(":core:discovery"))
+    implementation(project(":core:fingerprint"))
+    implementation(project(":core:capability"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":drivers:nokia-gpon"))
+    implementation(project(":drivers:tplink-legacy-cgi"))
+    implementation(project(":drivers:tplink-stok-luci"))
+    implementation(project(":drivers:tplink-experimental"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
