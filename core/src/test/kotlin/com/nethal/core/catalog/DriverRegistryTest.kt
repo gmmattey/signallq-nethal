@@ -11,11 +11,11 @@ import java.io.File
 class DriverRegistryTest {
 
     @Test
-    fun `loads embedded manifest with the four real profiles`() {
+    fun `loads embedded manifest with the six real profiles`() {
         val registry = DefaultDriverRegistry(embeddedManifestLoader = ::loadEmbeddedCatalogResource)
 
-        assertEquals("2026.07.25", registry.manifestVersion())
-        assertEquals(4, registry.profiles().size)
+        assertEquals("2026.07.26", registry.manifestVersion())
+        assertEquals(6, registry.profiles().size)
     }
 
     // Nota: "TP-Link"/"Archer C6" tem dois profiles no catálogo (ver teste de ambiguidade abaixo).
@@ -79,8 +79,8 @@ class DriverRegistryTest {
         val result = registry.sync()
 
         assertTrue(result is CatalogSyncResult.Failed)
-        assertEquals(4, registry.profiles().size)
-        assertEquals("2026.07.25", registry.manifestVersion())
+        assertEquals(6, registry.profiles().size)
+        assertEquals("2026.07.26", registry.manifestVersion())
     }
 
     @Test
@@ -90,7 +90,7 @@ class DriverRegistryTest {
         val result = registry.sync()
 
         assertTrue(result is CatalogSyncResult.NotAttempted)
-        assertEquals("2026.07.25", registry.manifestVersion())
+        assertEquals("2026.07.26", registry.manifestVersion())
     }
 
     /**
