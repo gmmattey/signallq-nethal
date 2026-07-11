@@ -92,4 +92,20 @@ class SettingsViewModelTest {
         assertEquals(ThemeMode.DARK, themeRepository.current())
         assertEquals(ThemeMode.DARK, viewModel.themeMode.value)
     }
+
+    @Test
+    fun `chosen theme survives a restart`() = runTest {
+        // Mesmo repositório (persistência) entre dois ViewModels = simula reabrir o app.
+        val themeRepository = FakeThemeModeRepository()
+        val first = SettingsViewModel(FakeConsentRepository(), themeRepository)
+        backgroundScope.launch { first.themeMode.collect {} }
+        first.setThemeMode(ThemeMode.LIGHT)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val afterRestart = SettingsViewModel(FakeConsentRepository(), themeRepository)
+        backgroundScope.launch { afterRestart.themeMode.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(ThemeMode.LIGHT, afterRestart.themeMode.value)
+    }
 }

@@ -35,10 +35,7 @@ class BottomNavHostTest {
         val app = ApplicationProvider.getApplicationContext<NetHalApplication>()
         viewModelFactory = NetHalViewModelFactory(
             consentRepository = app.consentRepository,
-            discoveryEngine = app.discoveryEngine,
-            networkEnvironmentReader = app.networkEnvironmentReader,
-            fingerprintEngine = app.fingerprintEngine,
-            manualIdentificationRepository = app.manualIdentificationRepository,
+            themeModeRepository = app.themeModeRepository,
             driverRegistry = app.driverRegistry,
             driverFamilyRegistry = app.driverFamilyRegistry,
         )
