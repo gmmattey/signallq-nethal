@@ -17,6 +17,11 @@ Luiz — esta pasta é a cópia versionada, fonte da verdade para o time.
   password, reboot, router, switch, warning, wifi.
 - **`support.js` / `image-slot.js` / `android-frame.jsx`** — runtime do canvas Claude Design, exigido
   pelos `.dc.html` acima (não editar à mão).
+- **`specs/`** — specs textuais complementares ao `.dc.html`, escritas quando uma tela do
+  protótipo diverge da implementação real (catálogo de drivers, permissões Android, etc.) e
+  precisa de decisão registrada além do visual. Em caso de conflito entre uma spec em `specs/`
+  e o `.dc.html`, a spec vence para as telas que ela cobre — ela existe justamente para corrigir
+  o protótipo.
 
 ## Como consultar
 
