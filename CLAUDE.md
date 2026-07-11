@@ -6,7 +6,15 @@ Drivers estáveis poderão ser incorporados futuramente ao SignallQ como "Signal
 
 ## Status
 
-Fase de fundação: só especificação e documentação. Nenhum código ainda (`src/`, app Android, etc. não existem). Antes de qualquer implementação, verificar se a estrutura de pastas do MVP já foi criada.
+MVP implementado em produção. Componentes ativos:
+- **SDK (NetHAL Core)**: `core/` — Discovery Engine, Fingerprint Engine, Driver Family Registry, Capability Engine com sessão gerenciada. Manifestos de catálogo versionados em `core/src/main/resources/catalog/`.
+- **App (NetHAL Lab)**: `app/` — Telas de discovery (Tela 1: List, Tela 2: Detail), autenticação (Tela 5), listagem de capabilities (Tela 4), relatório (Tela 6). Implementadas com Jetpack Compose, consumindo Driver Family real via Capability Engine.
+- **Drivers em produção**: 
+  - TP-Link Archer C6 (`tplink-stok-luci-driver`, `READ_ONLY_ALPHA`) — protocolo `/cgi-bin/luci` + token `stok` + cookie, Capability Engine com sessão
+  - TP-Link Archer C20 (`tplink-legacy-cgi-driver`, `READ_ONLY_ALPHA`) — protocolo dispatcher `/cgi?1&1&1&8` + HTTP Basic auth
+  - Nokia G-1425G-B (`nokia-gpon-driver`, `READ_ONLY_ALPHA`) — protocolo RSA+AES + GPON specifics, sessão gerenciada
+  - TP-Link gdpr-cgi e xdr-ds (experimental parser, `DRAFT`/`EXPERIMENTAL`, sem hardware confirmado)
+- **Testes**: 235+ cenários de teste, discovery e capability engine validados contra hardware real (Archer C6, Archer C20, Nokia G-1425G-B)
 
 ## Stack prevista
 
