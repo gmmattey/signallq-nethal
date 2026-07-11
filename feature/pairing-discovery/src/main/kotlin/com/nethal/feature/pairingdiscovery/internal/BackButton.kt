@@ -1,12 +1,12 @@
 package com.nethal.feature.pairingdiscovery.internal
 
-import com.nethal.core.designsystem.theme.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
@@ -23,11 +23,14 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun BackButton(onClick: () -> Unit) {
+    // Capturado fora do `Canvas`: o lambda de desenho roda em `DrawScope`, sem acesso a
+    // `MaterialTheme`.
+    val chevronColor = MaterialTheme.colorScheme.onBackground
     Canvas(
         modifier = Modifier
             .size(32.dp)
-            .background(color = SurfaceDark, shape = CircleShape)
-            .border(width = 1.dp, color = BorderDark, shape = CircleShape)
+            .background(color = MaterialTheme.colorScheme.surface, shape = CircleShape)
+            .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = CircleShape)
             .clickable(onClick = onClick),
     ) {
         val strokeWidth = 2.dp.toPx()
@@ -41,7 +44,7 @@ fun BackButton(onClick: () -> Unit) {
         }
         drawPath(
             path = path,
-            color = OnBackgroundDark,
+            color = chevronColor,
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }

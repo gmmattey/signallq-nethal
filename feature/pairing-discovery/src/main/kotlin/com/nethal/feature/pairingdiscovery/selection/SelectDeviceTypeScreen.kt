@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,11 +44,11 @@ fun SelectDeviceTypeScreen(
     var unavailableTypeLabel by remember { mutableStateOf<String?>(null) }
     val options = remember(profiles) { deviceTypeOptions(profiles) }
 
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(24.dp),
         ) {
@@ -55,7 +56,7 @@ fun SelectDeviceTypeScreen(
                 BackButton(onClick = onBack)
                 Text(
                     text = "Selecionar equipamento",
-                    color = OnBackgroundDark,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 10.dp),
@@ -64,7 +65,7 @@ fun SelectDeviceTypeScreen(
 
             Text(
                 text = "Etapa 1 de 3 · Tipo de equipamento",
-                color = OnSurfaceTertiaryDark,
+                color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
                 fontSize = 11.5.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
             )
@@ -72,13 +73,19 @@ fun SelectDeviceTypeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(color = SurfaceDark, shape = RoundedCornerShape(22.dp))
-                    .border(width = 1.dp, color = BorderDark, shape = RoundedCornerShape(22.dp)),
+                    .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(22.dp))
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(22.dp)),
             ) {
                 options.forEach { option ->
                     SelectableListRow(
                         title = option.label,
-                        leadingIcon = { RouterGlyph(tint = if (option.available) OnSurfaceVariantDark else OnSurfaceTertiaryDark, size = 20.dp) },
+                        leadingIcon = {
+                            RouterGlyph(
+                                tint = if (option.available) MaterialTheme.colorScheme.onSurfaceVariant
+                                else LocalNetHalExtendedColors.current.onSurfaceTertiary,
+                                size = 20.dp,
+                            )
+                        },
                         enabled = option.available,
                         onClick = {
                             if (option.available) {

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -58,11 +59,11 @@ fun EquipmentFoundScreen(viewModel: EquipmentDetectedViewModel, onContinue: (mat
 
 @Composable
 private fun IdentifyingContent() {
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
@@ -70,7 +71,7 @@ private fun IdentifyingContent() {
             RouterGlyph(tint = NetHalAccent, size = 28.dp)
             Text(
                 text = "Identificando o equipamento...",
-                color = OnBackgroundDark,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 15.sp,
             )
         }
@@ -85,11 +86,11 @@ private fun IdentifiedContent(
 ) {
     var showCorrectionForm by remember { mutableStateOf(state.isLowConfidence) }
 
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -97,7 +98,7 @@ private fun IdentifiedContent(
         ) {
             Text(
                 text = "1 roteador encontrado",
-                color = OnBackgroundDark,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -105,7 +106,7 @@ private fun IdentifiedContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(color = SurfaceDark, shape = RoundedCornerShape(26.dp))
+                    .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(26.dp))
                     .border(width = 1.dp, color = NetHalAccent, shape = RoundedCornerShape(26.dp))
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -116,34 +117,35 @@ private fun IdentifiedContent(
                         Text(
                             text = state.vendor?.let { vendor -> "$vendor ${state.model.orEmpty()}".trim() }
                                 ?: "Equipamento não identificado",
-                            color = OnBackgroundDark,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.5.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        Text(text = state.targetIp, color = OnSurfaceVariantDark, fontSize = 11.sp)
+                        Text(text = state.targetIp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                     }
                 }
 
                 Text(
                     text = "Firmware: ${state.firmware ?: "não disponível"}",
-                    color = OnSurfaceVariantDark,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.5.sp,
                 )
                 Text(
                     text = "Protocolo detectado: ${protocolsLabel(state.detectedProtocols)}",
-                    color = OnSurfaceVariantDark,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.5.sp,
                 )
 
                 StatusChip(
                     label = "Confiança: ${confidencePercentLabel(state.confidence)}",
-                    color = if (state.isLowConfidence) WarningDark else SuccessDark,
+                    color = if (state.isLowConfidence) LocalNetHalExtendedColors.current.warning
+                    else LocalNetHalExtendedColors.current.success,
                 )
 
                 if (state.isLowConfidence) {
                     Text(
                         text = "Confiança baixa — considere corrigir a identificação abaixo.",
-                        color = WarningDark,
+                        color = LocalNetHalExtendedColors.current.warning,
                         fontSize = 12.sp,
                     )
                 }
@@ -153,14 +155,14 @@ private fun IdentifiedContent(
                 text = "Catálogo de compatibilidade: versão ${state.manifestVersion} " +
                     "(atualizado em ${state.manifestGeneratedAt}). A identificação pode estar " +
                     "desatualizada se o catálogo for antigo.",
-                color = OnSurfaceTertiaryDark,
+                color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
                 fontSize = 11.sp,
             )
 
             if (!showCorrectionForm) {
                 OutlinedButton(
                     onClick = { showCorrectionForm = true },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = OnSurfaceVariantDark),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                     shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -195,22 +197,22 @@ private fun CorrectionForm(
     var firmware by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(text = "Corrigir identificação", color = OnBackgroundDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(text = "Corrigir identificação", color = MaterialTheme.colorScheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
 
         Text(
             text = "Equipamentos reconhecidos pelo catálogo atual: " +
                 KNOWN_PROFILE_SUGGESTIONS.joinToString(", ") { "${it.vendor} ${it.model}" },
-            color = OnSurfaceTertiaryDark,
+            color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
             fontSize = 11.sp,
         )
 
         val fieldColors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = OnBackgroundDark,
-            unfocusedTextColor = OnBackgroundDark,
+            focusedTextColor = MaterialTheme.colorScheme.onBackground,
+            unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
             focusedBorderColor = NetHalAccent,
-            unfocusedBorderColor = BorderDark,
-            focusedContainerColor = SurfaceDark,
-            unfocusedContainerColor = SurfaceDark,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
         )
 
         OutlinedTextField(
@@ -241,7 +243,7 @@ private fun CorrectionForm(
         Text(
             text = "Sua correção fica registrada apenas neste aparelho como candidata — " +
                 "não promove automaticamente nenhum driver para uso estável.",
-            color = OnSurfaceTertiaryDark,
+            color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
             fontSize = 11.sp,
         )
 
@@ -258,7 +260,7 @@ private fun CorrectionForm(
         if (correctionSubmitted) {
             Text(
                 text = "Correção salva localmente.",
-                color = SuccessDark,
+                color = LocalNetHalExtendedColors.current.success,
                 fontSize = 12.sp,
             )
         }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -41,18 +42,18 @@ fun ManualIpField(
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = OnBackgroundDark,
-                unfocusedTextColor = OnBackgroundDark,
+                focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
                 focusedBorderColor = NetHalAccent,
-                unfocusedBorderColor = BorderDark,
-                focusedContainerColor = SurfaceDark,
-                unfocusedContainerColor = SurfaceDark,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             ),
             modifier = Modifier.fillMaxWidth(),
         )
 
         if (error != null) {
-            Text(text = error, color = ErrorDark, fontSize = 12.sp)
+            Text(text = error, color = LocalNetHalExtendedColors.current.error, fontSize = 12.sp)
         }
 
         Button(

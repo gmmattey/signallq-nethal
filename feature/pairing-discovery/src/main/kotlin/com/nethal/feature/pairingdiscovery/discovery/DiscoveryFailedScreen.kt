@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,11 +39,11 @@ fun DiscoveryFailedScreen(
     onSelectManually: () -> Unit,
     onEnterIpManually: () -> Unit,
 ) {
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -50,14 +51,14 @@ fun DiscoveryFailedScreen(
         ) {
             Text(
                 text = "Não foi possível encontrar sua rede",
-                color = OnBackgroundDark,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
 
             Text(
                 text = probableReasonText(reason),
-                color = OnSurfaceVariantDark,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
 
@@ -72,15 +73,15 @@ fun DiscoveryFailedScreen(
 
             Text(
                 text = "Ou continue sem descoberta automática:",
-                color = OnSurfaceTertiaryDark,
+                color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
                 fontSize = 11.5.sp,
             )
 
             Button(
                 onClick = onSelectManually,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SurfaceDark,
-                    contentColor = OnBackgroundDark,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
                 ),
                 shape = RoundedCornerShape(18.dp),
                 modifier = Modifier.fillMaxWidth(),
@@ -90,7 +91,7 @@ fun DiscoveryFailedScreen(
 
             OutlinedButton(
                 onClick = onEnterIpManually,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = OnSurfaceVariantDark),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
                 shape = RoundedCornerShape(18.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {

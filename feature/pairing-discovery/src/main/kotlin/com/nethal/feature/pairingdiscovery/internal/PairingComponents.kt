@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,7 +69,11 @@ internal fun BreadcrumbTrail(steps: List<String>, currentLabel: String, modifier
             }
         }
         if (currentLabel.isNotEmpty()) {
-            Text(text = currentLabel, color = OnSurfaceTertiaryDark, fontSize = 11.5.sp)
+            Text(
+                text = currentLabel,
+                color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
+                fontSize = 11.5.sp,
+            )
         }
     }
 }
@@ -91,7 +96,10 @@ internal fun SelectableListRow(
     Row(
         modifier = modifier
             .alpha(if (enabled) 1f else 0.4f)
-            .background(if (highlighted) AccentSoftBackgroundDark else Color.Transparent)
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else Color.Transparent,
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -101,12 +109,16 @@ internal fun SelectableListRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = if (highlighted) NetHalAccent else OnBackgroundDark,
+                color = if (highlighted) NetHalAccent else MaterialTheme.colorScheme.onBackground,
                 fontSize = 14.5.sp,
                 fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
             )
             if (subtitle != null) {
-                Text(text = subtitle, color = OnSurfaceVariantDark, fontSize = 11.sp)
+                Text(
+                    text = subtitle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
             }
         }
         trailingContent?.invoke()
@@ -130,7 +142,9 @@ internal fun PairingInfoDialog(
     AlertDialog(
         onDismissRequest = { (onDismiss ?: onConfirm)() },
         title = { Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
-        text = { Text(text = body, fontSize = 13.sp, color = OnSurfaceVariantDark) },
+        text = {
+            Text(text = body, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text(confirmLabel) }
         },
@@ -139,8 +153,8 @@ internal fun PairingInfoDialog(
         } else {
             null
         },
-        containerColor = SurfaceDark,
-        titleContentColor = OnBackgroundDark,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onBackground,
     )
 }
 
@@ -150,14 +164,15 @@ internal fun AvatarInitial(letter: String, highlighted: Boolean) {
         modifier = Modifier
             .size(30.dp)
             .background(
-                color = if (highlighted) NetHalAccent.copy(alpha = 0.14f) else BackgroundDark,
+                color = if (highlighted) NetHalAccent.copy(alpha = 0.14f)
+                else MaterialTheme.colorScheme.background,
                 shape = RoundedCornerShape(9.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = letter,
-            color = if (highlighted) NetHalAccent else OnSurfaceVariantDark,
+            color = if (highlighted) NetHalAccent else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp,
         )

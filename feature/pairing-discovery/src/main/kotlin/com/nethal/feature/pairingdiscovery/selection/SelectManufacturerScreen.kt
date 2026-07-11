@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,11 +44,11 @@ fun SelectManufacturerScreen(
 ) {
     val manufacturers = remember(profiles, type) { manufacturerOptions(profiles, type) }
 
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(24.dp),
         ) {
@@ -55,7 +56,7 @@ fun SelectManufacturerScreen(
                 BackButton(onClick = onBack)
                 Text(
                     text = "Selecionar equipamento",
-                    color = OnBackgroundDark,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 10.dp),
@@ -71,8 +72,8 @@ fun SelectManufacturerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(color = SurfaceDark, shape = RoundedCornerShape(22.dp))
-                    .border(width = 1.dp, color = BorderDark, shape = RoundedCornerShape(22.dp)),
+                    .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(22.dp))
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(22.dp)),
             ) {
                 manufacturers.forEach { manufacturer ->
                     SelectableListRow(

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,11 +45,11 @@ fun MultipleCandidatesScreen(
 ) {
     var manualIp by remember { mutableStateOf("") }
 
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -56,14 +57,14 @@ fun MultipleCandidatesScreen(
         ) {
             Text(
                 text = "Encontramos mais de um equipamento",
-                color = OnBackgroundDark,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
 
             Text(
                 text = "Escolha qual equipamento você quer testar.",
-                color = OnSurfaceVariantDark,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
 
@@ -71,7 +72,7 @@ fun MultipleCandidatesScreen(
                 Text(
                     text = "Pode haver um equipamento adicional entre você e a internet " +
                         "(ex.: ONT da operadora).",
-                    color = WarningDark,
+                    color = LocalNetHalExtendedColors.current.warning,
                     fontSize = 12.5.sp,
                 )
             }
@@ -84,7 +85,7 @@ fun MultipleCandidatesScreen(
 
             Text(
                 text = "Ou informe outro equipamento manualmente:",
-                color = OnBackgroundDark,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -104,17 +105,17 @@ private fun CandidateCard(device: NetworkTarget, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(color = SurfaceDark, shape = RoundedCornerShape(20.dp))
-            .border(width = 1.dp, color = BorderDark, shape = RoundedCornerShape(20.dp))
+            .background(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp))
+            .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(text = device.ip, color = OnBackgroundDark, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold)
-        Text(text = roleLabel(device.role), color = OnSurfaceVariantDark, fontSize = 12.5.sp)
+        Text(text = device.ip, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = roleLabel(device.role), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.5.sp)
         Text(
             text = "Origem: ${sourceLabel(device.source)}",
-            color = OnSurfaceTertiaryDark,
+            color = LocalNetHalExtendedColors.current.onSurfaceTertiary,
             fontSize = 11.sp,
         )
     }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -110,11 +111,11 @@ fun DiscoveryScreen(
 // `LaunchedEffect` de forma determinística em todos os emuladores) — ver `ScanningContentTest`.
 @Composable
 internal fun ScanningContent(onSelectManually: () -> Unit) {
-    Scaffold(containerColor = BackgroundDark) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundDark)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
                 .padding(horizontal = 26.dp, vertical = 28.dp),
         ) {
@@ -126,14 +127,14 @@ internal fun ScanningContent(onSelectManually: () -> Unit) {
                 RadarIndicator()
                 Text(
                     text = "Procurando seu roteador…",
-                    color = OnBackgroundDark,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 Text(
                     text = "Certifique-se de que o roteador está ligado e você está na mesma rede Wi-Fi.",
-                    color = OnSurfaceVariantDark,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 10.dp),
                 )
@@ -167,12 +168,12 @@ private fun RadarIndicator() {
         Box(
             modifier = Modifier
                 .size(140.dp)
-                .border(width = 1.dp, color = BorderDark, shape = CircleShape),
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = CircleShape),
         )
         Box(
             modifier = Modifier
                 .size(96.dp)
-                .border(width = 1.dp, color = BorderDark, shape = CircleShape),
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = CircleShape),
         )
         Box(
             modifier = Modifier
