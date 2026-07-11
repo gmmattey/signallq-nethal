@@ -49,6 +49,103 @@ class NokiaResponseParserTest {
     }
 
     @Test
+    fun `parses RX threshold lower and upper and computes margin`() {
+        val html = """
+            var GponConnectionStat = 1;
+            var RXPower = "251189";
+            var TXPower = "158489";
+            var RXPowerLower = -27;
+            var RXPowerLowerDec = 95;
+            var RXPowerUpper = -7;
+            var RXPowerUpperDec = 0;
+        """.trimIndent()
+
+        val status = NokiaResponseParser.parseGponStatus(html)
+
+        requireNotNull(status)
+        assertEquals(-27.95, status.rxPowerLowerThresholdDbm!!, 0.001)
+        assertEquals(-7.0, status.rxPowerUpperThresholdDbm!!, 0.001)
+        assertEquals(status.rxPowerDbm - status.rxPowerLowerThresholdDbm!!, status.rxPowerMarginToLowerThresholdDb!!, 0.001)
+    }
+
+    @Test
+    fun `RX threshold fields are null when absent, margin stays null`() {
+        val html = """var GponConnectionStat = 1; var RXPower = "251189";"""
+
+        val status = NokiaResponseParser.parseGponStatus(html)
+
+        requireNotNull(status)
+        assertNull(status.rxPowerLowerThresholdDbm)
+        assertNull(status.rxPowerUpperThresholdDbm)
+        assertNull(status.rxPowerMarginToLowerThresholdDb)
+    }
+
+    @Test
+    fun `combines integer and fractional decimal into signed dbm`() {
+        assertEquals(-27.95, NokiaResponseParser.combineIntAndFractionDbm(-27, 95), 0.001)
+        assertEquals(-7.0, NokiaResponseParser.combineIntAndFractionDbm(-7, 0), 0.001)
+        assertEquals(0.5, NokiaResponseParser.combineIntAndFractionDbm(0, 50), 0.001)
+    }
+
+    @Test
+    fun `parses gpon error counters from stats object`() {
+        val html = """
+            var stats = {FECError:12,HECError:3,DropPackets:0,BytesSent:1000};
+        """.trimIndent()
+
+        val counters = NokiaResponseParser.parseGponErrorCounters(html)
+
+        requireNotNull(counters)
+        assertEquals(12L, counters.fecErrorCount)
+        assertEquals(3L, counters.hecErrorCount)
+        assertEquals(0L, counters.dropPacketsCount)
+    }
+
+    @Test
+    fun `gpon error counters returns null when none of the three fields are present`() {
+        assertNull(NokiaResponseParser.parseGponErrorCounters("var stats = {BytesSent:1000};"))
+    }
+
+    @Test
+    fun `gpon error counters defaults missing individual fields to zero`() {
+        val counters = NokiaResponseParser.parseGponErrorCounters("var stats = {FECError:7};")
+
+        requireNotNull(counters)
+        assertEquals(7L, counters.fecErrorCount)
+        assertEquals(0L, counters.hecErrorCount)
+        assertEquals(0L, counters.dropPacketsCount)
+    }
+
+    @Test
+    fun `parses lan port status array with nested stat object`() {
+        val html = """
+            var lan_ether = [
+                {Status:'Up', X_ALU_COM_CurMaxBitRate:'1000', stat:{ErrorsSent:0,ErrorsReceived:2}},
+                {Status:'NoLink', X_ALU_COM_CurMaxBitRate:'Auto', stat:{ErrorsSent:5,ErrorsReceived:0}}
+            ];
+        """.trimIndent()
+
+        val ports = NokiaResponseParser.parseLanPortStatus(html)
+
+        assertEquals(2, ports.size)
+        assertEquals(1, ports[0].portNumber)
+        assertTrue(ports[0].isUp)
+        assertEquals("Up", ports[0].statusRaw)
+        assertEquals("1000", ports[0].maxBitRateMbps)
+        assertEquals(0L, ports[0].errorsSent)
+        assertEquals(2L, ports[0].errorsReceived)
+        assertEquals(2, ports[1].portNumber)
+        assertTrue(!ports[1].isUp)
+        assertEquals("Auto", ports[1].maxBitRateMbps)
+        assertEquals(5L, ports[1].errorsSent)
+    }
+
+    @Test
+    fun `lan port status returns empty list when lan_ether array is absent`() {
+        assertTrue(NokiaResponseParser.parseLanPortStatus("<html>sem portas</html>").isEmpty())
+    }
+
+    @Test
     fun `gpon down status is reflected in isUp`() {
         val html = "var GponConnectionStat = 0;"
 

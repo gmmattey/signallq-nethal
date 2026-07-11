@@ -329,6 +329,60 @@ C20 como `TpLinkLegacyCgiDriverFamily`), aprovado com esta ressalva documentada.
 
 ## Changelog
 
+- **2026-07-11 (Bruno — Feat #27: `READ_OPTICAL_SIGNAL_MARGIN`/`READ_GPON_ERROR_COUNTERS`/
+  `READ_LAN_PORT_STATUS` no driver Nokia, issues #28/#29/#30)** — Três novos campos/capabilities do
+  levantamento de campo `NOKIA_GPON_FIELD_MAP.md` (produto irmão SignallQ), itens 1-3 da seção
+  "Oportunidades", mesmo endpoint já lido pelo driver (`wan_status.cgi?gpon`) e um vizinho já
+  mapeado (`lan_status.cgi?lan`).
+
+  **Pré-check da Feat (bug do `NokiaAuthenticationClient`/`HttpTransport.kt`):** confirmado
+  resolvido antes de iniciar — é o mesmo bug já documentado na entrada `2026-07-08` desta seção
+  (`DefaultHttpTransport.parseCookies`), corrigido pela PR #110 (closes #55), mergeada em `main` via
+  PR #115 (modularização ADR 0002) antes desta rodada começar. Nenhum bug adicional específico do
+  `NokiaAuthenticationClient` estava aberto no GitHub Issues.
+
+  - **`READ_SIGNAL` estendido (issue #28), não capability nova** — decisão registrada na própria
+    issue (nomenclatura fica a cargo de quem implementa): `SignalStatus` (`core/model`) ganha
+    `rxPowerLowerThresholdDbm`/`rxPowerUpperThresholdDbm`/`rxPowerMarginToLowerThresholdDb`, todos
+    `null` quando o firmware não devolve os campos. `RXPowerLower`/`RXPowerLowerDec` e
+    `RXPowerUpper`/`RXPowerUpperDec` combinados via `NokiaResponseParser.combineIntAndFractionDbm`
+    (parte inteira + fração em centésimos). Margem = `rxPowerDbm - rxPowerLowerThresholdDbm`,
+    calculada pelo driver (critério de aceite explícito da issue, app não repete a conta).
+  - **`READ_GPON_ERROR_COUNTERS` (issue #29, capability nova)** — `stats.FECError`/`HECError`/
+    `DropPackets`, mesmo endpoint de `READ_SIGNAL`. Comportamento cumulativo-desde-boot vs.
+    por-janela **não confirmado** contra hardware real — assumido cumulativo (comportamento típico
+    de PMBd GPON), flag explícita no manifesto (`state: EXPERIMENTAL`).
+  - **`READ_LAN_PORT_STATUS` (issue #30, capability nova, genérica/não vendor-specific)** —
+    `lan_ether[]` de `lan_status.cgi?lan` (`Status`, `X_ALU_COM_CurMaxBitRate`/`MaxBitRate`,
+    `ErrorsSent`/`ErrorsReceived` aninhado em `stat:{...}`). Novo helper
+    `NokiaResponseParser.extractJsArrayObjects` (balanceamento de colchetes/chaves, generaliza
+    `extractFirstJsonArrayObject` para múltiplos objetos e sintaxe JS solta). Adicionada ao
+    vocabulário oficial em `docs/drivers/driver-model.md`/spec §8.6/skill `/modelo-capacidades`.
+
+  **Validação: só JVM/mock, não hardware real.** Rede local do equipamento do Luiz estava acessível
+  neste ambiente (ping e HTTP GET na raiz confirmados), mas a captura autenticada ao vivo
+  (`nokiaManualCheck`) não foi executada por este agente — exigiria digitar a senha real numa sessão
+  de Claude Code, o que o próprio `NokiaManualCheck.kt` proíbe explicitamente ("nem digitada numa
+  sessão do Claude Code — sempre via prompt interativo, num terminal próprio, fora de qualquer
+  transcript de conversa"). Por isso o encoding assumido de `RXPowerLower`/`RXPowerLowerDec`/
+  `RXPowerUpper`/`RXPowerUpperDec` (inferido só do exemplo textual do field map, sem corpo bruto
+  capturado) e o comportamento cumulativo dos contadores GPON ficam como suposição documentada, não
+  fato confirmado — ambas as capabilities novas entram como `EXPERIMENTAL`, não `AVAILABLE`.
+  Validação real em hardware fica pendente, a ser rodada pelo próprio usuário.
+
+  **Estágio do profile:** permanece `READ_ONLY_ALPHA` — promoção é decisão do Rafael, fora de escopo
+  desta implementação (instrução explícita da task).
+
+  Novo manifesto `catalog-2026.07.27.json` (`previousManifest: catalog-2026.07.26.json`):
+  `driverConfig.lanStatusPath` novo (`/lan_status.cgi?lan`), `capabilities[]` ganha
+  `READ_GPON_ERROR_COUNTERS`/`READ_LAN_PORT_STATUS` (`EXPERIMENTAL`), `READ_SIGNAL` permanece
+  `AVAILABLE` com nota sobre a extensão, novo `knownFirmwareBugs` documentando a suposição de
+  encoding dos thresholds. `confidenceScoreOverall` inalterado (0.9) — cobre só as capabilities já
+  validadas, as duas novas `EXPERIMENTAL` não entram no cálculo agregado.
+
+  Issue #35 (backlog de campos secundários, itens 5-8 do mesmo levantamento) registrada como
+  backlog — nenhuma implementação nesta rodada, conforme o próprio critério de aceite da issue.
+
 - **2026-07-10 (issue #19 — `authenticate()` real no `tplink-legacy-cgi`; `readCapability()` sai do
   estado "sempre `Unavailable`")** — Mesmo padrão de sessão gerenciada já usado por
   `TpLinkStokLuciDriverFamily`/issue #16: `TpLinkLegacyCgiDriverFamily` ganha `authenticate()` real

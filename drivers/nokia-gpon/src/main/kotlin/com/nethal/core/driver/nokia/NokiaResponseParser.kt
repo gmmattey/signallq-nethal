@@ -28,18 +28,81 @@ internal object NokiaResponseParser {
             // Unidade bruta é 0.5 µA, não µA — daí a divisão por 500 (não 1000) para chegar em mA.
             val laserRaw = extractJsInt(html, listOf("LaserCurrent", "TxBiasCurrent", "BiasCurrent"))
 
+            val rxDbm = normalizeRxSign(convertOpticalPowerToDbm(rxRaw, minDbm = -80.0, maxDbm = 0.0))
+
+            // Thresholds do próprio transceptor (issue #28) — inteiro + fração decimal separada,
+            // já em dBm (não passa pela conversão logarítmica de RXPower/TXPower acima). Não
+            // confirmado contra corpo bruto real do equipamento (ver combineIntAndFractionDbm).
+            val lowerInt = extractJsInt(html, listOf("RXPowerLower"))
+            val lowerDec = extractJsInt(html, listOf("RXPowerLowerDec"))
+            val upperInt = extractJsInt(html, listOf("RXPowerUpper"))
+            val upperDec = extractJsInt(html, listOf("RXPowerUpperDec"))
+            val lowerThresholdDbm = lowerInt?.let { combineIntAndFractionDbm(it, lowerDec ?: 0) }
+            val upperThresholdDbm = upperInt?.let { combineIntAndFractionDbm(it, upperDec ?: 0) }
+            val margin = lowerThresholdDbm?.let { rxDbm - it }
+
             NokiaGponStatus(
                 isUp = isUp,
                 connectionMode = mode,
-                rxPowerDbm = normalizeRxSign(convertOpticalPowerToDbm(rxRaw, minDbm = -80.0, maxDbm = 0.0)),
+                rxPowerDbm = rxDbm,
                 txPowerDbm = convertOpticalPowerToDbm(txRaw, minDbm = -40.0, maxDbm = 10.0),
                 transceiverTemperatureCelsius = (tempRaw ?: 0) / 256.0,
                 serialNumber = serial,
                 supplyVoltageVolts = (voltageRaw ?: 0) / 10_000.0,
                 laserCurrentMilliAmps = (laserRaw ?: 0) / 500.0,
+                rxPowerLowerThresholdDbm = lowerThresholdDbm,
+                rxPowerUpperThresholdDbm = upperThresholdDbm,
+                rxPowerMarginToLowerThresholdDb = margin,
             )
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Contadores de erro da camada GPON (issue #29), lidos do objeto `stats` do mesmo endpoint de
+     * [parseGponStatus]. Retorna `null` só se nenhum dos três contadores foi encontrado — presença
+     * parcial (ex.: só `FECError`) é resultado válido, os demais ficam em `0`.
+     */
+    fun parseGponErrorCounters(html: String): NokiaGponErrorCounters? {
+        return try {
+            val fec = extractJsInt(html, listOf("FECError"))
+            val hec = extractJsInt(html, listOf("HECError"))
+            val drop = extractJsInt(html, listOf("DropPackets"))
+            if (fec == null && hec == null && drop == null) return null
+
+            NokiaGponErrorCounters(
+                fecErrorCount = (fec ?: 0).toLong(),
+                hecErrorCount = (hec ?: 0).toLong(),
+                dropPacketsCount = (drop ?: 0).toLong(),
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Status por porta LAN Ethernet (issue #30), lido do array `lan_ether[]` de
+     * `lan_status.cgi?lan`. Cada objeto do array traz `Status` ("Up"/"NoLink"),
+     * `X_ALU_COM_CurMaxBitRate`/`MaxBitRate` e, dentro de um `stat:{...}` aninhado,
+     * `ErrorsSent`/`ErrorsReceived` — [extractJsInt] encontra o campo aninhado sem precisar
+     * de um parser de JS estruturado, mesma abordagem tolerante do resto desta classe.
+     */
+    fun parseLanPortStatus(html: String): List<NokiaLanPort> {
+        return try {
+            extractJsArrayObjects(html, "lan_ether").mapIndexedNotNull { index, portBody ->
+                val statusRaw = extractJsString(portBody, listOf("Status")) ?: return@mapIndexedNotNull null
+                NokiaLanPort(
+                    portNumber = index + 1,
+                    isUp = statusRaw.equals("Up", ignoreCase = true),
+                    statusRaw = statusRaw,
+                    maxBitRateMbps = extractJsString(portBody, listOf("X_ALU_COM_CurMaxBitRate", "MaxBitRate")) ?: "—",
+                    errorsSent = (extractJsInt(portBody, listOf("ErrorsSent")) ?: 0).toLong(),
+                    errorsReceived = (extractJsInt(portBody, listOf("ErrorsReceived")) ?: 0).toLong(),
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
@@ -200,6 +263,49 @@ internal object NokiaResponseParser {
         return null
     }
 
+    /**
+     * Localiza um array JS pelo nome da variável (ex.: `var lan_ether = [{...}, {...}];`) e retorna
+     * o corpo bruto de cada objeto `{...}` do array, respeitando aninhamento de chaves (ex.: um
+     * `stat:{...}` dentro de cada porta) — mesma técnica de balanceamento de
+     * [extractFirstJsonArrayObject], generalizada para todos os objetos do array (não só o
+     * primeiro) e para sintaxe JS solta (chave sem aspas, `:` ou `=`), não só JSON estrito.
+     */
+    internal fun extractJsArrayObjects(source: String, arrayKey: String): List<String> {
+        val escaped = Regex.escape(arrayKey)
+        val arrayStartRegex = Regex(""""$escaped"\s*:\s*\[|\b$escaped\b\s*[:=]\s*\[""")
+        // `range.last` aponta para o `[` de abertura em si — começa em `+1` para não contar essa
+        // mesma abertura duas vezes (uma pelo regex, outra pelo `when` abaixo).
+        var i = (arrayStartRegex.find(source)?.range?.last ?: return emptyList()) + 1
+
+        val objects = mutableListOf<String>()
+        var arrayDepth = 1
+        while (i < source.length && arrayDepth > 0) {
+            when (source[i]) {
+                '[' -> arrayDepth++
+                ']' -> arrayDepth--
+                '{' -> {
+                    val objStart = i
+                    var braceDepth = 0
+                    while (i < source.length) {
+                        when (source[i]) {
+                            '{' -> braceDepth++
+                            '}' -> {
+                                braceDepth--
+                                if (braceDepth == 0) {
+                                    objects.add(source.substring(objStart, i + 1))
+                                    break
+                                }
+                            }
+                        }
+                        i++
+                    }
+                }
+            }
+            i++
+        }
+        return objects
+    }
+
     private fun extractHtmlTableRows(html: String): List<List<String>> {
         val rowRegex = Regex("""(?is)<tr\b[^>]*>(.*?)</tr>""")
         val cellRegex = Regex("""(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>""")
@@ -253,5 +359,24 @@ internal object NokiaResponseParser {
         if (milliwatts <= 0) return 0.0
         val dbm = floor(log10(milliwatts * 0.00001) * 1000) / 100.0
         return if (dbm in minDbm..maxDbm) dbm else 0.0
+    }
+
+    /**
+     * Combina os dois campos de threshold RX do firmware (`RXPowerLower`/`RXPowerLowerDec`,
+     * `RXPowerUpper`/`RXPowerUpperDec`) num único valor em dBm — issue #28.
+     *
+     * **Assunção não confirmada contra corpo bruto real do equipamento** (nenhum driver, do NetHAL
+     * ou do produto irmão SignallQ, tinha parseado estes dois campos antes desta rodada — só o
+     * exemplo textual do levantamento de campo estava disponível: threshold Rx Lower ≈ -27,95 dBm
+     * com `RXPowerLower`/`RXPowerLowerDec` não capturados em bruto). Modelo adotado: `intPart` é a
+     * parte inteira já com o sinal correto (negativo para threshold de RX, como o resto do driver);
+     * `decPart` é a fração em centésimos (0-99) que se soma à magnitude — ex.: `intPart=-27`,
+     * `decPart=95` → `-27.95`. Precisa de confirmação em `nokiaManualCheck` real antes de confiar
+     * neste valor para qualquer decisão automática (a Tela 4 já expõe como "não confirmado" via
+     * `knownFirmwareBugs` do catálogo).
+     */
+    internal fun combineIntAndFractionDbm(intPart: Int, decPart: Int): Double {
+        val fraction = decPart.coerceIn(0, 99) / 100.0
+        return if (intPart < 0) intPart - fraction else intPart + fraction
     }
 }

@@ -196,6 +196,10 @@ internal class NokiaGponDriverFamily(
         CapabilityId.READ_WAN_STATUS -> config.wanStatusPath
         CapabilityId.READ_DEVICE_INFO -> config.deviceInfoPath
         CapabilityId.READ_CONNECTED_CLIENTS -> config.connectedClientsPath
+        // Mesmo endpoint de READ_SIGNAL (issue #29) — os contadores de erro vivem no objeto
+        // `stats` da mesma tela de Optics Module Status, não numa tela própria.
+        CapabilityId.READ_GPON_ERROR_COUNTERS -> config.gponStatusPath
+        CapabilityId.READ_LAN_PORT_STATUS -> config.lanStatusPath
         else -> error("pathFor chamado para capability não suportada por NokiaGponDriverFamily: $id")
     }
 
@@ -220,10 +224,49 @@ internal class NokiaGponDriverFamily(
                             transceiverTemperatureCelsius = gpon.transceiverTemperatureCelsius,
                             supplyVoltageVolts = gpon.supplyVoltageVolts,
                             laserCurrentMilliAmps = gpon.laserCurrentMilliAmps,
+                            rxPowerLowerThresholdDbm = gpon.rxPowerLowerThresholdDbm,
+                            rxPowerUpperThresholdDbm = gpon.rxPowerUpperThresholdDbm,
+                            rxPowerMarginToLowerThresholdDb = gpon.rxPowerMarginToLowerThresholdDb,
                         ),
                     ),
                 )
             }
+        }
+        CapabilityId.READ_GPON_ERROR_COUNTERS -> {
+            val counters = NokiaResponseParser.parseGponErrorCounters(rawBody)
+            if (counters == null) {
+                CapabilityReadResult.Unavailable(reason = "Contadores de erro GPON (FEC/HEC/DropPackets) ausentes na resposta do equipamento.")
+            } else {
+                CapabilityReadResult.Success(
+                    capability = Capability(id = id, state = CapabilityState.AVAILABLE, confidence = 1.0),
+                    payload = CapabilityPayload.GponErrorCounters(
+                        com.nethal.core.model.GponErrorCounters(
+                            fecErrorCount = counters.fecErrorCount,
+                            hecErrorCount = counters.hecErrorCount,
+                            dropPacketsCount = counters.dropPacketsCount,
+                        ),
+                    ),
+                )
+            }
+        }
+        CapabilityId.READ_LAN_PORT_STATUS -> {
+            val ports = NokiaResponseParser.parseLanPortStatus(rawBody)
+            CapabilityReadResult.Success(
+                capability = Capability(id = id, state = CapabilityState.AVAILABLE, confidence = 1.0),
+                payload = CapabilityPayload.LanPorts(
+                    com.nethal.core.model.LanPortStatusList(
+                        ports = ports.map { port ->
+                            com.nethal.core.model.LanPort(
+                                portNumber = port.portNumber,
+                                isUp = port.isUp,
+                                linkSpeedMbps = port.maxBitRateMbps,
+                                errorsSent = port.errorsSent,
+                                errorsReceived = port.errorsReceived,
+                            )
+                        },
+                    ),
+                ),
+            )
         }
         CapabilityId.READ_WAN_STATUS -> {
             val wan = NokiaResponseParser.parseWanStatus(rawBody)
@@ -297,6 +340,8 @@ internal class NokiaGponDriverFamily(
             CapabilityId.READ_DEVICE_INFO,
             CapabilityId.READ_CONNECTED_CLIENTS,
             CapabilityId.READ_SIGNAL,
+            CapabilityId.READ_GPON_ERROR_COUNTERS,
+            CapabilityId.READ_LAN_PORT_STATUS,
         )
     }
 }

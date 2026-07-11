@@ -38,6 +38,8 @@ READ_CPU
 READ_MEMORY
 READ_SIGNAL
 READ_MESH_STATUS
+READ_GPON_ERROR_COUNTERS
+READ_LAN_PORT_STATUS
 
 SET_WIFI_SSID
 SET_WIFI_PASSWORD
@@ -48,6 +50,16 @@ SET_DNS
 REBOOT_DEVICE
 RESTART_WIFI
 ```
+
+`READ_GPON_ERROR_COUNTERS` e `READ_LAN_PORT_STATUS` foram adicionadas ao vocabulário em 2026-07-11
+(Feat #27, issues #29/#30), a partir do levantamento de campo do Nokia G-1425G-B
+(`NOKIA_GPON_FIELD_MAP.md`, produto irmão SignallQ). `READ_SIGNAL` (issue #28, mesma Feat) não
+ganhou capability nova — foi estendida (`SignalStatus.rxPowerLowerThresholdDbm`/
+`rxPowerUpperThresholdDbm`/`rxPowerMarginToLowerThresholdDb`) por já cobrir o mesmo conceito
+(potência óptica), decisão registrada no PR da issue. `READ_LAN_PORT_STATUS` é deliberadamente
+genérica (não vendor-specific): status físico por porta Ethernet é uma necessidade de diagnóstico
+comum a qualquer equipamento com portas LAN gerenciáveis, mesmo que hoje só o driver Nokia
+G-1425G-B tenha parser real. Primeiro (e único, nesta rodada) caso real de ambas: `NokiaGponDriverFamily`.
 
 ## Catálogo de compatibilidade (Driver Registry)
 

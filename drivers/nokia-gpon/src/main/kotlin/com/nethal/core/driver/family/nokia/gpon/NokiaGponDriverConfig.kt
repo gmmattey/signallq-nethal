@@ -29,6 +29,15 @@ data class NokiaGponDriverConfig(
     val deviceInfoPath: String,
     /** Tabela de clientes conectados à rede local — usado por `READ_CONNECTED_CLIENTS`. */
     val connectedClientsPath: String,
+    /**
+     * Status por porta LAN Ethernet (`lan_ether[]`) — usado por `READ_GPON_ERROR_COUNTERS`
+     * (mesmo endpoint de [gponStatusPath], objeto `stats`, então reaproveita [gponStatusPath]) e
+     * por `READ_LAN_PORT_STATUS` (issue #30). Endpoint distinto de [connectedClientsPath]:
+     * `lan_status.cgi?lan` (portas físicas) vs. `lan_status.cgi?wlan` (clientes conectados).
+     * Default `"/lan_status.cgi?lan"` para não quebrar `driverConfig` de manifestos antigos que
+     * ainda não têm este campo.
+     */
+    val lanStatusPath: String = "/lan_status.cgi?lan",
 ) {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }

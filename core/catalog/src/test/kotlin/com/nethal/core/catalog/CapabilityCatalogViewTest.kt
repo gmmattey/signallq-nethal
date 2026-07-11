@@ -38,7 +38,7 @@ private fun fakeProfile(capabilities: List<CatalogCapabilityEntry>, confidenceSc
 
 class CapabilityCatalogViewTest {
 
-    // --- Catálogo real ativo (catalog-2026.07.26.json) ---
+    // --- Catálogo real ativo (catalog-2026.07.27.json) ---
 
     @Test
     fun `projects declared capabilities for every real profile in the active manifest`() {
@@ -47,8 +47,8 @@ class CapabilityCatalogViewTest {
         val nokia = registry.findProfile("nokia", "g-1425g-b")!!
         val declared = CapabilityCatalogView.declaredCapabilities(nokia)
 
-        assertEquals(5, declared.size)
-        assertTrue(declared.all { it.state == CapabilityState.AVAILABLE })
+        // 5 AVAILABLE (reconfirmadas) + 2 EXPERIMENTAL novas (issues #29/#30, sem validação real ainda).
+        assertEquals(7, declared.size)
         assertTrue(declared.all { it.confidence == 0.9 })
         // AVAILABLE com reason preenchido no catálogo (reconfirmação) é preservado, não descartado.
         assertTrue(declared.all { it.reason != null })
@@ -61,6 +61,18 @@ class CapabilityCatalogViewTest {
                 CapabilityId.READ_FIRMWARE,
             ),
         ))
+        assertEquals(
+            CapabilityState.AVAILABLE,
+            declared.first { it.id == CapabilityId.READ_SIGNAL }.state,
+        )
+        assertEquals(
+            CapabilityState.EXPERIMENTAL,
+            declared.first { it.id == CapabilityId.READ_GPON_ERROR_COUNTERS }.state,
+        )
+        assertEquals(
+            CapabilityState.EXPERIMENTAL,
+            declared.first { it.id == CapabilityId.READ_LAN_PORT_STATUS }.state,
+        )
     }
 
     @Test

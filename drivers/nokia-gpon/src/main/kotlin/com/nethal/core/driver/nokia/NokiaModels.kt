@@ -5,10 +5,16 @@ package com.nethal.core.driver.nokia
  * Não force estes campos dentro de `DeviceInfo`/`WifiStatus` genéricos: GPON, WAN e PPP são
  * conceitos próprios de ONT/RGW que ainda não têm equivalente no vocabulário genérico do core.
  * Capabilities candidatas destes tipos: READ_DEVICE_INFO, READ_WAN_STATUS, READ_SIGNAL,
- * READ_UPTIME, READ_FIRMWARE (ver catalog-2026.07.13.json, profile nokia_g1425gb_v1).
+ * READ_UPTIME, READ_FIRMWARE, READ_GPON_ERROR_COUNTERS, READ_LAN_PORT_STATUS (issues #28/#29/#30,
+ * ver catalog-2026.07.27.json, profile nokia_g1425gb_v1).
  */
 
-/** Status óptico GPON — potência RX/TX em dBm, temperatura do transceptor, tensão e corrente do laser. */
+/**
+ * Status óptico GPON — potência RX/TX em dBm, temperatura do transceptor, tensão e corrente do
+ * laser, e (issue #28) thresholds de RX configurados no próprio transceptor + margem já calculada.
+ * `rxPowerLowerThresholdDbm`/`rxPowerUpperThresholdDbm` `null` quando o firmware não devolveu o
+ * campo (mesma filosofia tolerante do resto do parser).
+ */
 data class NokiaGponStatus(
     val isUp: Boolean,
     val connectionMode: String,
@@ -18,6 +24,35 @@ data class NokiaGponStatus(
     val serialNumber: String,
     val supplyVoltageVolts: Double,
     val laserCurrentMilliAmps: Double,
+    val rxPowerLowerThresholdDbm: Double? = null,
+    val rxPowerUpperThresholdDbm: Double? = null,
+    val rxPowerMarginToLowerThresholdDb: Double? = null,
+)
+
+/**
+ * Contadores de erro da camada GPON (issue #29), lidos do mesmo endpoint de
+ * [NokiaGponStatus] (`wan_status.cgi?gpon`, objeto `stats`). Ver `GponErrorCounters`
+ * (`core/model`) para a nota sobre comportamento cumulativo vs. por janela — não confirmado contra
+ * hardware real para este firmware.
+ */
+data class NokiaGponErrorCounters(
+    val fecErrorCount: Long,
+    val hecErrorCount: Long,
+    val dropPacketsCount: Long,
+)
+
+/**
+ * Status físico de uma porta LAN Ethernet (issue #30), lido de `lan_status.cgi?lan`
+ * (array `lan_ether[]`). `portNumber` é 1-based, na ordem de aparição no array — o firmware não
+ * expõe um índice de porta explícito e confiável nos exemplos documentados.
+ */
+data class NokiaLanPort(
+    val portNumber: Int,
+    val isUp: Boolean,
+    val statusRaw: String,
+    val maxBitRateMbps: String,
+    val errorsSent: Long,
+    val errorsReceived: Long,
 )
 
 /** Status da conexão WAN (IP externo, gateway, DNS, VLAN, tipo de conexão, uptime). */

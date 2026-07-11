@@ -27,4 +27,14 @@ sealed interface CapabilityPayload {
      */
     data class DeviceInfo(val info: com.nethal.core.model.DeviceInfo) : CapabilityPayload
     data class Signal(val status: SignalStatus) : CapabilityPayload
+
+    /**
+     * Payload de `READ_GPON_ERROR_COUNTERS` (issue #29) — primeiro parser estruturado real veio de
+     * `NokiaGponDriverFamily`. Mesmo padrão de qualificação de nome de `DeviceInfo` acima (case e
+     * tipo de campo compartilham nome simples, por isso o tipo é fully-qualified).
+     */
+    data class GponErrorCounters(val counters: com.nethal.core.model.GponErrorCounters) : CapabilityPayload
+
+    /** Payload de `READ_LAN_PORT_STATUS` (issue #30) — primeiro parser estruturado real veio de `NokiaGponDriverFamily`. */
+    data class LanPorts(val status: LanPortStatusList) : CapabilityPayload
 }

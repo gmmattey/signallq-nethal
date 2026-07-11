@@ -32,6 +32,7 @@ class NokiaGponDriverFamilyTest {
         pppStatusPath = "/index.cgi?getppp",
         deviceInfoPath = "/device_status.cgi",
         connectedClientsPath = "/lan_status.cgi?wlan",
+        lanStatusPath = "/lan_status.cgi?lan",
     )
 
     private fun loginPageWithGeneratedKey(): String {
@@ -45,12 +46,22 @@ class NokiaGponDriverFamilyTest {
     }
 
     private val samplePages = mapOf(
-        "/wan_status.cgi?gpon" to """var GponConnectionStat = 1; var RXPower = "251189"; var TXPower = "158489";""",
+        "/wan_status.cgi?gpon" to """
+            var GponConnectionStat = 1; var RXPower = "251189"; var TXPower = "158489";
+            var RXPowerLower = -27; var RXPowerLowerDec = 95; var RXPowerUpper = -7; var RXPowerUpperDec = 0;
+            var stats = {FECError:12,HECError:3,DropPackets:0};
+        """.trimIndent(),
         "/show_wan_status.cgi?ipv4" to """
             var wan_conns = {ConnectionStatus:'Connected',ExternalIPAddress:'203.0.113.10',RemoteIPAddress:'198.51.100.1',DNSServers:'8.8.8.8,8.8.4.4',Uptime:60,ConnectionType:'IP_Routed'};
         """.trimIndent(),
         "/device_status.cgi" to """{"ModelName":"G-1425G-B","Manufacturer":"Nokia","SerialNumber":"ALCLXXXXXXXX","SoftwareVersion":"v1","HardwareVersion":"1.0","UpTime":100}""",
         "/lan_status.cgi?wlan" to sampleHomeNetworkingHtml(),
+        "/lan_status.cgi?lan" to """
+            var lan_ether = [
+                {Status:'Up', X_ALU_COM_CurMaxBitRate:'1000', stat:{ErrorsSent:0,ErrorsReceived:2}},
+                {Status:'NoLink', X_ALU_COM_CurMaxBitRate:'Auto', stat:{ErrorsSent:5,ErrorsReceived:0}}
+            ];
+        """.trimIndent(),
     )
 
     private fun sessionRejectedBody(): String =
@@ -187,6 +198,46 @@ class NokiaGponDriverFamilyTest {
     }
 
     @Test
+    fun `readCapability READ_SIGNAL includes RX threshold and margin fields after authenticate`() = runTest {
+        val driver = authenticatedDriver()
+
+        val result = driver.readCapability(CapabilityId.READ_SIGNAL)
+
+        assertTrue(result is CapabilityReadResult.Success)
+        val status = ((result as CapabilityReadResult.Success).payload as CapabilityPayload.Signal).status
+        assertEquals(-27.95, status.rxPowerLowerThresholdDbm!!, 0.001)
+        assertEquals(-7.0, status.rxPowerUpperThresholdDbm!!, 0.001)
+        assertEquals(status.rxPowerDbm!! - status.rxPowerLowerThresholdDbm!!, status.rxPowerMarginToLowerThresholdDb!!, 0.001)
+    }
+
+    @Test
+    fun `readCapability READ_GPON_ERROR_COUNTERS returns Success with parsed counters after authenticate`() = runTest {
+        val driver = authenticatedDriver()
+
+        val result = driver.readCapability(CapabilityId.READ_GPON_ERROR_COUNTERS)
+
+        assertTrue(result is CapabilityReadResult.Success)
+        val counters = ((result as CapabilityReadResult.Success).payload as CapabilityPayload.GponErrorCounters).counters
+        assertEquals(12L, counters.fecErrorCount)
+        assertEquals(3L, counters.hecErrorCount)
+        assertEquals(0L, counters.dropPacketsCount)
+    }
+
+    @Test
+    fun `readCapability READ_LAN_PORT_STATUS returns Success with parsed ports after authenticate`() = runTest {
+        val driver = authenticatedDriver()
+
+        val result = driver.readCapability(CapabilityId.READ_LAN_PORT_STATUS)
+
+        assertTrue(result is CapabilityReadResult.Success)
+        val ports = ((result as CapabilityReadResult.Success).payload as CapabilityPayload.LanPorts).status.ports
+        assertEquals(2, ports.size)
+        assertTrue(ports[0].isUp)
+        assertEquals("1000", ports[0].linkSpeedMbps)
+        assertTrue(!ports[1].isUp)
+    }
+
+    @Test
     fun `readCapability returns SessionExpired when the equipment rejects the session cookie mid-read`() = runTest {
         val transport = FakeNokiaHttpTransport(
             loginPageBody = loginPageWithGeneratedKey(),
@@ -210,6 +261,8 @@ class NokiaGponDriverFamilyTest {
                 CapabilityId.READ_DEVICE_INFO,
                 CapabilityId.READ_CONNECTED_CLIENTS,
                 CapabilityId.READ_SIGNAL,
+                CapabilityId.READ_GPON_ERROR_COUNTERS,
+                CapabilityId.READ_LAN_PORT_STATUS,
             ),
             NokiaGponDriverFamily.SUPPORTED_CAPABILITIES,
         )

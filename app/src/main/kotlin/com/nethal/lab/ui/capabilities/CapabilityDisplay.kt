@@ -28,6 +28,8 @@ fun capabilityLabel(id: CapabilityId): String = when (id) {
     CapabilityId.READ_MEMORY -> "Uso de memória"
     CapabilityId.READ_SIGNAL -> "Sinal"
     CapabilityId.READ_MESH_STATUS -> "Status de mesh"
+    CapabilityId.READ_GPON_ERROR_COUNTERS -> "Contadores de erro GPON"
+    CapabilityId.READ_LAN_PORT_STATUS -> "Status das portas LAN"
     CapabilityId.SET_WIFI_SSID -> "Alterar nome da rede (SSID)"
     CapabilityId.SET_WIFI_PASSWORD -> "Trocar senha"
     CapabilityId.SET_WIFI_CHANNEL -> "Alterar canal"
@@ -116,6 +118,26 @@ fun capabilityPayloadSummary(payload: CapabilityPayload): String = when (payload
         val status = payload.status
         val rx = status.rxPowerDbm?.let { "RX ${it} dBm" } ?: "RX não lido"
         val tx = status.txPowerDbm?.let { "TX ${it} dBm" } ?: "TX não lido"
-        "$rx, $tx"
+        val margin = status.rxPowerMarginToLowerThresholdDb?.let { ", margem ${it} dB até o limite inferior" }.orEmpty()
+        "$rx, $tx$margin"
+    }
+    is CapabilityPayload.GponErrorCounters -> {
+        val c = payload.counters
+        val fec = c.fecErrorCount?.toString() ?: "não lido"
+        val hec = c.hecErrorCount?.toString() ?: "não lido"
+        val drop = c.dropPacketsCount?.toString() ?: "não lido"
+        "FEC $fec, HEC $hec, descartes $drop"
+    }
+    is CapabilityPayload.LanPorts -> {
+        val ports = payload.status.ports
+        if (ports.isEmpty()) {
+            "nenhuma porta lida"
+        } else {
+            ports.joinToString("; ") { port ->
+                val state = if (port.isUp) "up" else "sem link"
+                val speed = port.linkSpeedMbps?.let { "$it Mbps" } ?: "velocidade não lida"
+                "porta ${port.portNumber}: $state, $speed"
+            }
+        }
     }
 }
