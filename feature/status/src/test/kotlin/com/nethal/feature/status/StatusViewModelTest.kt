@@ -10,6 +10,13 @@ import com.nethal.core.model.CapabilityId
 import com.nethal.core.model.CapabilityPayload
 import com.nethal.core.model.CapabilityState
 import com.nethal.core.model.DeviceInfo
+import com.nethal.core.model.DeviceType
+import com.nethal.core.model.GponErrorCounters
+import com.nethal.core.model.LanPort
+import com.nethal.core.model.LanPortStatusList
+import com.nethal.core.model.MeshTopology
+import com.nethal.core.model.MeshTopologyNode
+import com.nethal.core.model.SignalStatus
 import com.nethal.core.model.WanStatus
 import com.nethal.core.model.WifiBand
 import com.nethal.core.model.WifiRadio
@@ -99,6 +106,67 @@ class StatusViewModelTest {
         payload = CapabilityPayload.Wan(WanStatus(ipv4Address = "203.0.113.9")),
     )
 
+    // --- Fixtures das variantes ONT (#87) e Mesh (#88+#106) -------------------------------------
+
+    private fun deviceInfoOntSuccess() = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_DEVICE_INFO, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.DeviceInfo(
+            DeviceInfo(vendor = "Nokia", model = "G-1425-B", deviceType = DeviceType.ONT),
+        ),
+    )
+
+    private fun signalSuccess(
+        rxPowerDbm: Double = -18.5,
+        txPowerDbm: Double = 2.3,
+        marginDb: Double? = 4.5,
+    ) = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_SIGNAL, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.Signal(
+            SignalStatus(
+                rxPowerDbm = rxPowerDbm,
+                txPowerDbm = txPowerDbm,
+                rxPowerMarginToLowerThresholdDb = marginDb,
+            ),
+        ),
+    )
+
+    private fun gponErrorsSuccess() = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_GPON_ERROR_COUNTERS, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.GponErrorCounters(
+            GponErrorCounters(fecErrorCount = 12, hecErrorCount = 3, dropPacketsCount = 0),
+        ),
+    )
+
+    private fun lanPortsSuccess() = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_LAN_PORT_STATUS, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.LanPorts(
+            LanPortStatusList(
+                ports = listOf(
+                    LanPort(portNumber = 1, isUp = true, linkSpeedMbps = "1000"),
+                    LanPort(portNumber = 2, isUp = false),
+                ),
+            ),
+        ),
+    )
+
+    private fun meshTopologySuccess(
+        clients: List<MeshTopologyNode> = listOf(
+            MeshTopologyNode(hostname = "notebook", macAddress = "11:22:33:44:55:66", ipAddress = "192.168.1.5", wireType = "wireless"),
+        ),
+        satelliteNodeCount: Int = 1,
+    ) = CapabilityReadResult.Success(
+        capability = Capability(id = CapabilityId.READ_MESH_TOPOLOGY, state = CapabilityState.AVAILABLE, confidence = 1.0),
+        payload = CapabilityPayload.MeshTopology(
+            MeshTopology(
+                routerModel = "Archer C6",
+                routerName = "NETHAL-Home",
+                routerMacAddress = "AA:BB:CC:DD:EE:FF",
+                clients = clients,
+                satelliteNodeCount = satelliteNodeCount,
+            ),
+        ),
+    )
+
     // --- Estados disponível/indisponível -------------------------------------------------------
 
     @Test
@@ -168,6 +236,125 @@ class StatusViewModelTest {
         val state = viewModel.uiState.value as StatusUiState.Loaded
         assertEquals(StatusDotLevel.ERROR, state.wifi?.dot)
         assertEquals("timeout ao ler Wi-Fi", state.wifi?.detail)
+    }
+
+    // --- Variante ONT (issue #87) e Mesh (issue #88+#106) ----------------------------------------
+
+    @Test
+    fun `ONT device type surfaces the Ont variant with real signal, gpon error and lan port data`() = runTest {
+        val family = CountingDriverFamily(
+            mapOf(
+                CapabilityId.READ_DEVICE_INFO to deviceInfoOntSuccess(),
+                CapabilityId.READ_SIGNAL to signalSuccess(),
+                CapabilityId.READ_GPON_ERROR_COUNTERS to gponErrorsSuccess(),
+                CapabilityId.READ_LAN_PORT_STATUS to lanPortsSuccess(),
+            ),
+        )
+        val engine = activeEngine(family)
+        val viewModel = StatusViewModel(capabilityEngine = engine)
+
+        viewModel.onScreenStarted()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value as StatusUiState.Loaded
+        val variant = state.variant
+        assertTrue(variant is StatusVariant.Ont)
+        variant as StatusVariant.Ont
+        assertEquals(-18.5, variant.signal.rxPowerDbm)
+        assertEquals(2.3, variant.signal.txPowerDbm)
+        assertEquals(4.5, variant.signal.rxPowerMarginToLowerThresholdDb)
+        assertEquals(StatusDotLevel.OK, variant.signal.dot)
+        assertEquals(null, variant.signal.unavailableReason)
+        assertEquals(12L, variant.gponErrors.fecErrorCount)
+        assertEquals(3L, variant.gponErrors.hecErrorCount)
+        assertEquals(2, variant.lanPorts.ports.size)
+        assertTrue(variant.lanPorts.ports[0].isUp)
+        assertFalse(variant.lanPorts.ports[1].isUp)
+        // Equipamento ONT nunca dispara leitura de topologia mesh (resolveVariant, passo 3).
+        assertEquals(0, family.readCounts[CapabilityId.READ_MESH_TOPOLOGY] ?: 0)
+    }
+
+    @Test
+    fun `successful READ_MESH_TOPOLOGY without a declared device type surfaces the Mesh variant with real topology`() = runTest {
+        val family = CountingDriverFamily(mapOf(CapabilityId.READ_MESH_TOPOLOGY to meshTopologySuccess()))
+        val engine = activeEngine(family)
+        val viewModel = StatusViewModel(capabilityEngine = engine)
+
+        viewModel.onScreenStarted()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value as StatusUiState.Loaded
+        val variant = state.variant
+        assertTrue(variant is StatusVariant.Mesh)
+        variant as StatusVariant.Mesh
+        assertEquals("Archer C6 · NETHAL-Home", variant.topology.routerLabel)
+        assertEquals(1, variant.topology.satelliteNodeCount)
+        assertEquals(1, variant.topology.clients.size)
+        assertEquals("notebook", variant.topology.clients.first().hostname)
+        assertEquals(null, variant.topology.unavailableReason)
+        // Equipamento mesh (sem READ_DEVICE_INFO/deviceType) nunca dispara leitura de sinal óptico.
+        assertEquals(0, family.readCounts[CapabilityId.READ_SIGNAL] ?: 0)
+    }
+
+    @Test
+    fun `mesh topology with zero satellites and no clients is real data, not an unavailable state`() = runTest {
+        val family = CountingDriverFamily(
+            mapOf(CapabilityId.READ_MESH_TOPOLOGY to meshTopologySuccess(clients = emptyList(), satelliteNodeCount = 0)),
+        )
+        val engine = activeEngine(family)
+        val viewModel = StatusViewModel(capabilityEngine = engine)
+
+        viewModel.onScreenStarted()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val variant = (viewModel.uiState.value as StatusUiState.Loaded).variant as StatusVariant.Mesh
+        assertEquals(null, variant.topology.unavailableReason)
+        assertEquals(0, variant.topology.satelliteNodeCount)
+        assertTrue(variant.topology.clients.isEmpty())
+    }
+
+    @Test
+    fun `ONT device with a transient signal read failure keeps the Ont variant with an honest reason, never fake data`() = runTest {
+        val family = CountingDriverFamily(
+            mapOf(
+                CapabilityId.READ_DEVICE_INFO to deviceInfoOntSuccess(),
+                CapabilityId.READ_SIGNAL to CapabilityReadResult.Failure(reason = "timeout ao ler sinal óptico"),
+            ),
+        )
+        val engine = activeEngine(family)
+        val viewModel = StatusViewModel(capabilityEngine = engine)
+
+        viewModel.onScreenStarted()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // O cast abaixo já prova que a variante continua Ont mesmo com a leitura de sinal falhando
+        // neste tick — nunca cai silenciosamente para a variante genérica só porque um sub-bloco falhou.
+        val variant = (viewModel.uiState.value as StatusUiState.Loaded).variant as StatusVariant.Ont
+        assertEquals("timeout ao ler sinal óptico", variant.signal.unavailableReason)
+        assertEquals(StatusDotLevel.ERROR, variant.signal.dot)
+        assertEquals(null, variant.signal.rxPowerDbm)
+    }
+
+    @Test
+    fun `router without ONT device type or mesh topology keeps the generic variant, never inventing a specialized card`() = runTest {
+        val family = CountingDriverFamily(
+            mapOf(
+                CapabilityId.READ_DEVICE_INFO to deviceInfoSuccess(),
+                CapabilityId.READ_WIFI_STATUS to wifiSuccess(),
+                CapabilityId.READ_WAN_STATUS to wanSuccess(),
+            ),
+        )
+        val engine = activeEngine(family)
+        val viewModel = StatusViewModel(capabilityEngine = engine)
+
+        viewModel.onScreenStarted()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value as StatusUiState.Loaded
+        assertEquals(null, state.variant)
+        // Tentou detectar (mesh primeiro, sinal depois) mas nenhuma capability respondeu com sucesso.
+        assertEquals(1, family.readCounts[CapabilityId.READ_MESH_TOPOLOGY] ?: 0)
+        assertEquals(1, family.readCounts[CapabilityId.READ_SIGNAL] ?: 0)
     }
 
     // --- Mecanismo de atualização (poll em intervalo + pull-to-refresh) -------------------------

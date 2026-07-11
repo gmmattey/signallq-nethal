@@ -31,8 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.nethal.core.designsystem.theme.SuccessDark
-import com.nethal.core.designsystem.theme.WarningDark
+import com.nethal.core.designsystem.theme.LocalNetHalExtendedColors
 
 /**
  * Tela Status (issue #83) — destino permanente da bottom nav, dado ao vivo (mecanismo de
@@ -112,6 +111,15 @@ private fun SessionUnavailableBody(state: StatusUiState.SessionUnavailable) {
 @Composable
 private fun LoadedBody(state: StatusUiState.Loaded) {
     EquipmentAndWifiCard(state)
+    when (val variant = state.variant) {
+        is StatusVariant.Ont -> {
+            OpticalSignalCard(variant.signal)
+            GponErrorCountersCard(variant.gponErrors)
+            LanPortsCard(variant.lanPorts)
+        }
+        is StatusVariant.Mesh -> MeshTopologyCard(variant.topology)
+        null -> Unit
+    }
     SpeedCard(state.speed)
     NativeAdSlot()
 }
@@ -172,9 +180,10 @@ private fun StatusRow(title: String, detail: String?, dot: StatusDotLevel?, test
 
 @Composable
 private fun StatusDot(level: StatusDotLevel) {
+    val extendedColors = LocalNetHalExtendedColors.current
     val color = when (level) {
-        StatusDotLevel.OK -> SuccessDark
-        StatusDotLevel.WARNING -> WarningDark
+        StatusDotLevel.OK -> extendedColors.success
+        StatusDotLevel.WARNING -> extendedColors.warning
         StatusDotLevel.ERROR -> MaterialTheme.colorScheme.error
     }
     Box(
@@ -184,6 +193,204 @@ private fun StatusDot(level: StatusDotLevel) {
             .background(color)
             .testTag("status_dot_${level.name.lowercase()}"),
     )
+}
+
+/** Tile de métrica rotulada (design system, protótipo `3g`/`3h` — grid de estatísticas). Reaproveitado pelas três variantes especializadas abaixo. */
+@Composable
+private fun MetricTile(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .padding(14.dp),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = value, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+/**
+ * Card de sinal óptico (variante ONT, issue #87, protótipo `3g`) — Rx/Tx e margem sobre o limite
+ * mínimo já calculada pelo driver (`READ_SIGNAL` estendido, issue #28). Nunca reclassifica saúde do
+ * sinal além do que [signal].dot já traz — ver KDoc de `StatusViewModel.signalDisplayFrom`.
+ */
+@Composable
+private fun OpticalSignalCard(signal: OpticalSignalDisplay) {
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("status_ont_signal_card"),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            StatusRow(
+                title = "Sinal óptico",
+                detail = signal.unavailableReason ?: "Potência Rx/Tx e margem sobre o limite mínimo do transceptor",
+                dot = signal.dot,
+                testTag = "status_ont_signal_row",
+            )
+            if (signal.unavailableReason == null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MetricTile(
+                        label = "Potência Rx",
+                        value = signal.rxPowerDbm?.let { "%.1f dBm".format(it) } ?: "—",
+                        modifier = Modifier.weight(1f).testTag("status_ont_signal_rx"),
+                    )
+                    MetricTile(
+                        label = "Potência Tx",
+                        value = signal.txPowerDbm?.let { "%.1f dBm".format(it) } ?: "—",
+                        modifier = Modifier.weight(1f).testTag("status_ont_signal_tx"),
+                    )
+                }
+                signal.rxPowerMarginToLowerThresholdDb?.let { margin ->
+                    Text(
+                        text = "Margem sobre limite mínimo: %.1f dB".format(margin),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("status_ont_signal_margin"),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Card de contadores de erro GPON (variante ONT, issue #87) — `READ_GPON_ERROR_COUNTERS` (issue #29), sem classificação de saúde (comportamento cumulativo vs. por janela não confirmado, ver KDoc de `GponErrorCounters`). */
+@Composable
+private fun GponErrorCountersCard(counters: GponErrorCountersDisplay) {
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("status_ont_gpon_errors_card"),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            StatusRow(
+                title = "Contadores de erro GPON",
+                detail = counters.unavailableReason ?: "FEC corrigido, erro de cabeçalho, pacotes descartados",
+                dot = if (counters.unavailableReason != null) StatusDotLevel.ERROR else null,
+                testTag = "status_ont_gpon_errors_row",
+            )
+            if (counters.unavailableReason == null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MetricTile(label = "FEC", value = counters.fecErrorCount?.toString() ?: "—", modifier = Modifier.weight(1f))
+                    MetricTile(label = "HEC", value = counters.hecErrorCount?.toString() ?: "—", modifier = Modifier.weight(1f))
+                    MetricTile(label = "Drop", value = counters.dropPacketsCount?.toString() ?: "—", modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** Card de status por porta LAN (variante ONT, issue #87) — `READ_LAN_PORT_STATUS` (issue #30). */
+@Composable
+private fun LanPortsCard(lanPorts: LanPortsDisplay) {
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("status_ont_lan_ports_card"),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(text = "Portas LAN", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            when {
+                lanPorts.unavailableReason != null -> Text(
+                    text = lanPorts.unavailableReason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("status_ont_lan_ports_unavailable"),
+                )
+                lanPorts.ports.isEmpty() -> Text(
+                    text = "Nenhuma porta LAN reportada pelo equipamento.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("status_ont_lan_ports_empty"),
+                )
+                else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    lanPorts.ports.forEach { port -> LanPortRowView(port) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanPortRowView(port: LanPortRow) {
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag("status_ont_lan_port_${port.portNumber}"),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusDot(level = if (port.isUp) StatusDotLevel.OK else StatusDotLevel.WARNING)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = "Porta ${port.portNumber}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = listOfNotNull(
+                    if (port.isUp) "Up" else "Sem link",
+                    port.linkSpeedMbps?.let { "$it Mbps" },
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Card de topologia mesh (variante Mesh, issue #88+#106, protótipo `3h`) — `READ_MESH_TOPOLOGY` (issue #32). */
+@Composable
+private fun MeshTopologyCard(topology: MeshTopologyDisplay) {
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("status_mesh_topology_card"),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            StatusRow(
+                title = topology.routerLabel ?: "Roteador mesh",
+                detail = topology.unavailableReason
+                    ?: "Nós satélite: ${topology.satelliteNodeCount} · Clientes na malha: ${topology.clients.size}",
+                dot = if (topology.unavailableReason != null) StatusDotLevel.ERROR else StatusDotLevel.OK,
+                testTag = "status_mesh_summary_row",
+            )
+            if (topology.unavailableReason == null) {
+                when {
+                    topology.clients.isEmpty() -> Text(
+                        text = "Nenhum cliente reportado pela malha.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("status_mesh_clients_empty"),
+                    )
+                    else -> {
+                        Text(
+                            text = "CLIENTES NA MALHA",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            topology.clients.forEach { client -> MeshClientRowView(client) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MeshClientRowView(client: MeshClientRow) {
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag("status_mesh_client_row"),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = client.hostname ?: client.macAddress ?: "Dispositivo",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            val detail = listOfNotNull(client.ipAddress, client.wireType).joinToString(" · ")
+            if (detail.isNotBlank()) {
+                Text(text = detail, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 /** Card de velocidade com sparkline (design system, seção "Componentes" 1h/1i). Sem `CapabilityId` de teste de velocidade hoje — mostra o estado "indisponível" (seção 1v), nunca dado inventado. */

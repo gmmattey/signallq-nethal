@@ -6,6 +6,7 @@ import com.nethal.core.capability.CapabilityEngine
 import com.nethal.core.catalog.CapabilityReadResult
 import com.nethal.core.model.CapabilityId
 import com.nethal.core.model.CapabilityPayload
+import com.nethal.core.model.DeviceType
 import com.nethal.core.model.WifiBand
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -110,14 +111,150 @@ class StatusViewModel(
         val deviceInfoResult = engine.readCapability(CapabilityId.READ_DEVICE_INFO)
         val wifiResult = engine.readCapability(CapabilityId.READ_WIFI_STATUS)
         val wanResult = engine.readCapability(CapabilityId.READ_WAN_STATUS)
+        val variant = resolveVariant(engine, deviceInfoResult)
 
-        _uiState.value = buildLoadedState(deviceInfoResult, wifiResult, wanResult)
+        _uiState.value = buildLoadedState(deviceInfoResult, wifiResult, wanResult, variant)
+    }
+
+    /**
+     * Decide qual [StatusVariant] renderizar (issues #87, #88+#106) — nunca por comparação de
+     * fabricante (`if (vendor == ...)`), sempre por dado estrutural real já lido do equipamento.
+     *
+     * 1. `DeviceInfo.deviceType` de [deviceInfoResult] quando o driver o declara — hoje só o driver
+     *    Nokia (`NokiaGponDriverFamily`) declara `DeviceType.ONT` em toda leitura bem-sucedida de
+     *    `READ_DEVICE_INFO`. Escolher a variante por esse fato estrutural (em vez de só pela
+     *    capability de sinal responder) mantém a variante ONT estável mesmo num tick em que
+     *    `READ_SIGNAL` falhe transitoriamente — o card mostra o motivo honesto
+     *    ([OpticalSignalDisplay.unavailableReason]) em vez de silenciosamente virar a variante
+     *    genérica.
+     * 2. Quando o driver não declara `deviceType` nenhum — hoje o caso de
+     *    `TpLinkStokLuciDriverFamily`, que ainda não implementa `READ_DEVICE_INFO` — a variante Mesh
+     *    é detectada pela própria capability `READ_MESH_TOPOLOGY` responder com sucesso (confirmado
+     *    como backend suficiente no comentário da issue #106); só se essa não responder é que
+     *    `READ_SIGNAL` é tentado como sinal secundário de variante ONT.
+     * 3. Nenhuma capability extra de variante é lida quando o passo 1 já resolve — equipamento ONT
+     *    nunca dispara `READ_MESH_TOPOLOGY`, e vice-versa.
+     */
+    private suspend fun resolveVariant(
+        engine: CapabilityEngine,
+        deviceInfoResult: CapabilityReadResult,
+    ): StatusVariant? {
+        val deviceType = (deviceInfoResult as? CapabilityReadResult.Success)
+            ?.payload.let { it as? CapabilityPayload.DeviceInfo }?.info?.deviceType
+
+        return when (deviceType) {
+            DeviceType.ONT, DeviceType.ONU -> loadOntVariant(engine, signalResult = engine.readCapability(CapabilityId.READ_SIGNAL))
+            DeviceType.MESH -> loadMeshVariant(engine, meshResult = engine.readCapability(CapabilityId.READ_MESH_TOPOLOGY))
+            else -> {
+                val meshResult = engine.readCapability(CapabilityId.READ_MESH_TOPOLOGY)
+                if (meshResult is CapabilityReadResult.Success) {
+                    loadMeshVariant(engine, meshResult)
+                } else {
+                    val signalResult = engine.readCapability(CapabilityId.READ_SIGNAL)
+                    if (signalResult is CapabilityReadResult.Success) loadOntVariant(engine, signalResult) else null
+                }
+            }
+        }
+    }
+
+    private suspend fun loadOntVariant(engine: CapabilityEngine, signalResult: CapabilityReadResult): StatusVariant.Ont {
+        val gponErrorsResult = engine.readCapability(CapabilityId.READ_GPON_ERROR_COUNTERS)
+        val lanPortsResult = engine.readCapability(CapabilityId.READ_LAN_PORT_STATUS)
+        return StatusVariant.Ont(
+            signal = signalDisplayFrom(signalResult),
+            gponErrors = gponErrorCountersDisplayFrom(gponErrorsResult),
+            lanPorts = lanPortsDisplayFrom(lanPortsResult),
+        )
+    }
+
+    private suspend fun loadMeshVariant(engine: CapabilityEngine, meshResult: CapabilityReadResult): StatusVariant.Mesh =
+        StatusVariant.Mesh(topology = meshTopologyDisplayFrom(meshResult))
+
+    private fun signalDisplayFrom(result: CapabilityReadResult): OpticalSignalDisplay {
+        val signal = (result as? CapabilityReadResult.Success)?.payload.let { it as? CapabilityPayload.Signal }?.status
+        if (result !is CapabilityReadResult.Success || signal == null) {
+            return OpticalSignalDisplay(
+                rxPowerDbm = null,
+                txPowerDbm = null,
+                rxPowerMarginToLowerThresholdDb = null,
+                dot = StatusDotLevel.ERROR,
+                unavailableReason = readResultReason(result),
+            )
+        }
+        return OpticalSignalDisplay(
+            rxPowerDbm = signal.rxPowerDbm,
+            txPowerDbm = signal.txPowerDbm,
+            rxPowerMarginToLowerThresholdDb = signal.rxPowerMarginToLowerThresholdDb,
+            // Só classifica ruim quando a margem (já calculada pelo driver, issue #28) é negativa —
+            // sem margem disponível, mostra o dado bruto sem inventar uma classificação de saúde.
+            dot = if ((signal.rxPowerMarginToLowerThresholdDb ?: 0.0) < 0) StatusDotLevel.WARNING else StatusDotLevel.OK,
+        )
+    }
+
+    private fun gponErrorCountersDisplayFrom(result: CapabilityReadResult): GponErrorCountersDisplay {
+        val counters = (result as? CapabilityReadResult.Success)?.payload.let { it as? CapabilityPayload.GponErrorCounters }?.counters
+        if (result !is CapabilityReadResult.Success || counters == null) {
+            return GponErrorCountersDisplay(
+                fecErrorCount = null,
+                hecErrorCount = null,
+                dropPacketsCount = null,
+                unavailableReason = readResultReason(result),
+            )
+        }
+        return GponErrorCountersDisplay(
+            fecErrorCount = counters.fecErrorCount,
+            hecErrorCount = counters.hecErrorCount,
+            dropPacketsCount = counters.dropPacketsCount,
+        )
+    }
+
+    private fun lanPortsDisplayFrom(result: CapabilityReadResult): LanPortsDisplay {
+        val status = (result as? CapabilityReadResult.Success)?.payload.let { it as? CapabilityPayload.LanPorts }?.status
+        if (result !is CapabilityReadResult.Success || status == null) {
+            return LanPortsDisplay(ports = emptyList(), unavailableReason = readResultReason(result))
+        }
+        return LanPortsDisplay(
+            ports = status.ports.map { port ->
+                LanPortRow(
+                    portNumber = port.portNumber,
+                    isUp = port.isUp,
+                    linkSpeedMbps = port.linkSpeedMbps,
+                    errorsSent = port.errorsSent,
+                    errorsReceived = port.errorsReceived,
+                )
+            },
+        )
+    }
+
+    private fun meshTopologyDisplayFrom(result: CapabilityReadResult): MeshTopologyDisplay {
+        val topology = (result as? CapabilityReadResult.Success)?.payload.let { it as? CapabilityPayload.MeshTopology }?.topology
+        if (result !is CapabilityReadResult.Success || topology == null) {
+            return MeshTopologyDisplay(
+                routerLabel = null,
+                satelliteNodeCount = 0,
+                clients = emptyList(),
+                unavailableReason = readResultReason(result),
+            )
+        }
+        return MeshTopologyDisplay(
+            routerLabel = listOfNotNull(topology.routerModel, topology.routerName).joinToString(" · ").ifBlank { null },
+            satelliteNodeCount = topology.satelliteNodeCount,
+            clients = topology.clients.map { node ->
+                MeshClientRow(
+                    hostname = node.hostname,
+                    macAddress = node.macAddress,
+                    ipAddress = node.ipAddress,
+                    wireType = node.wireType,
+                )
+            },
+        )
     }
 
     private fun buildLoadedState(
         deviceInfoResult: CapabilityReadResult,
         wifiResult: CapabilityReadResult,
         wanResult: CapabilityReadResult,
+        variant: StatusVariant?,
     ): StatusUiState.Loaded {
         val deviceInfo = (deviceInfoResult as? CapabilityReadResult.Success)
             ?.payload.let { it as? CapabilityPayload.DeviceInfo }?.info
@@ -172,6 +309,7 @@ class StatusViewModel(
             // Sem CapabilityId de teste de velocidade hoje — ver KDoc de SpeedSample. Nunca mockado.
             speed = null,
             lastUpdatedAtMillis = nowMillis(),
+            variant = variant,
         )
     }
 

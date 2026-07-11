@@ -31,8 +31,91 @@ sealed interface StatusUiState {
         val publicIp: String?,
         val speed: SpeedSample?,
         val lastUpdatedAtMillis: Long,
+        /**
+         * Variante especializada da tela (issues #87/#88+#106) — `null` para o equipamento genérico
+         * (Roteador, comportamento já existente antes destas issues, sem regressão). Nunca é uma
+         * escolha do usuário: [StatusViewModel.resolveVariant] decide a partir de dado estrutural
+         * real já lido do equipamento (`DeviceInfo.deviceType` quando o driver o declara, ou a
+         * própria capability de variante respondendo com sucesso quando o driver não declara
+         * `deviceType`) — nunca por comparação de fabricante.
+         */
+        val variant: StatusVariant? = null,
     ) : StatusUiState
 }
+
+/**
+ * Bloco de dado adicional específico de um tipo de equipamento, além do card genérico
+ * equipamento+Wi-Fi já existente. Um card por sub-bloco de dado ([OpticalSignalDisplay],
+ * [GponErrorCountersDisplay], [LanPortsDisplay], [MeshTopologyDisplay]) — cada um honesto sobre
+ * disponibilidade (`unavailableReason` não nulo quando a leitura ao vivo falhou ou a capability não
+ * está disponível), nunca dado inventado, mesmo padrão já usado por [WifiStatusDisplay]/[SpeedSample].
+ */
+sealed interface StatusVariant {
+    /** Variante ONT/GPON (issue #87, driver Nokia G-1425G-B) — capabilities #27-30. */
+    data class Ont(
+        val signal: OpticalSignalDisplay,
+        val gponErrors: GponErrorCountersDisplay,
+        val lanPorts: LanPortsDisplay,
+    ) : StatusVariant
+
+    /** Variante Mesh (issue #88+#106, driver TP-Link Archer C6/OneMesh) — capability `READ_MESH_TOPOLOGY` (#32). */
+    data class Mesh(
+        val topology: MeshTopologyDisplay,
+    ) : StatusVariant
+}
+
+/** Recorte de `READ_SIGNAL` (potência óptica) para a variante ONT. */
+data class OpticalSignalDisplay(
+    val rxPowerDbm: Double?,
+    val txPowerDbm: Double?,
+    /** Margem já calculada pelo driver (`SignalStatus.rxPowerMarginToLowerThresholdDb`, issue #28) — nunca recalculada aqui. */
+    val rxPowerMarginToLowerThresholdDb: Double?,
+    val dot: StatusDotLevel,
+    val unavailableReason: String? = null,
+)
+
+/** Recorte de `READ_GPON_ERROR_COUNTERS` para a variante ONT. */
+data class GponErrorCountersDisplay(
+    val fecErrorCount: Long?,
+    val hecErrorCount: Long?,
+    val dropPacketsCount: Long?,
+    val unavailableReason: String? = null,
+)
+
+/** Uma porta LAN, recorte de `READ_LAN_PORT_STATUS` para a variante ONT. */
+data class LanPortRow(
+    val portNumber: Int,
+    val isUp: Boolean,
+    val linkSpeedMbps: String?,
+    val errorsSent: Long?,
+    val errorsReceived: Long?,
+)
+
+/**
+ * Recorte de `READ_LAN_PORT_STATUS` para a variante ONT. Lista vazia com [unavailableReason] `null`
+ * é dado real (equipamento reportou zero portas), distinto de leitura indisponível — mesmo raciocínio
+ * já documentado em `TpLinkStokLuciDriverFamily.meshTopologyResultFor` para `READ_CONNECTED_CLIENTS`.
+ */
+data class LanPortsDisplay(
+    val ports: List<LanPortRow>,
+    val unavailableReason: String? = null,
+)
+
+/** Um cliente conectado à malha mesh, recorte de `MeshTopologyNode` para a variante Mesh. */
+data class MeshClientRow(
+    val hostname: String?,
+    val macAddress: String?,
+    val ipAddress: String?,
+    val wireType: String?,
+)
+
+/** Recorte de `READ_MESH_TOPOLOGY` para a variante Mesh. Lista de clientes/contagem de satélites vazia é dado real, mesmo raciocínio de [LanPortsDisplay]. */
+data class MeshTopologyDisplay(
+    val routerLabel: String?,
+    val satelliteNodeCount: Int,
+    val clients: List<MeshClientRow>,
+    val unavailableReason: String? = null,
+)
 
 /** Cor do indicador de status (design system, tokens de sucesso/aviso/erro — nunca cor decorativa). */
 enum class StatusDotLevel {
