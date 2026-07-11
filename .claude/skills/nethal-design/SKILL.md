@@ -15,6 +15,27 @@ Fonte completa: `docs/design/design-system.dc.html` (tokens/componentes) e `docs
 
 Sistema único, dark cyber utilitário — sem fundos decorativos chapados, sem ícones em cápsula colorida. Cor é reservada a função: accent (#006FFF) = interativo/dado primário; verde/âmbar/vermelho = só estado (sucesso/aviso/erro), nunca decoração de categoria.
 
+## Status de implementação (app, não design)
+
+Tema claro **implementado** (issue #132, PR mergeado 2026-07-11). O app deixou de ser dark-only:
+`NetHalLabTheme(themeMode)` resolve `LIGHT`/`DARK`/`SYSTEM` (`SYSTEM` segue `isSystemInDarkTheme()`),
+e há seletor real Claro/Escuro/Sistema em Configurações (aplica na hora, sem reiniciar). A escolha
+persiste em DataStore (`nethal_theme`).
+
+Arquivos-chave:
+- Tokens dark/light: `core/designsystem/src/main/kotlin/com/nethal/core/designsystem/theme/Color.kt`
+- `ThemeMode` + contrato de persistência: `.../theme/ThemeMode.kt`, `.../theme/ThemeModeRepository.kt`
+- Resolução de `ColorScheme` + `NetHalLabTheme`: `.../theme/Theme.kt`
+- Cores sem slot M3 (sucesso/aviso/erro-de-chip/texto terciário) via `CompositionLocal`:
+  `.../theme/ExtendedColors.kt` (`LocalNetHalExtendedColors`)
+- Persistência real (DataStore): `app/src/main/kotlin/com/nethal/lab/data/theme/ThemeModeDataStore.kt`
+- Seletor: `feature/settings/src/main/kotlin/com/nethal/feature/settings/SettingsScreen.kt`
+
+Regra ao implementar tela nova: consumir **cor semântica** — `MaterialTheme.colorScheme.*` para os
+slots M3 e `LocalNetHalExtendedColors.current.*` para sucesso/aviso/erro-de-chip/texto terciário.
+Nunca referenciar token `*Dark`/`*Light` direto numa tela (não responde ao toggle). Border → `outline`,
+Surface-2 → `surfaceVariant`, texto terciário → `LocalNetHalExtendedColors.current.onSurfaceTertiary`.
+
 ## Cores — tokens (dark / light)
 
 | Token | Dark | Light |
