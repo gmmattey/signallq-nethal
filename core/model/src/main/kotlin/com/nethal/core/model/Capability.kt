@@ -19,6 +19,18 @@ enum class CapabilityId {
     READ_MEMORY,
     READ_SIGNAL,
     READ_MESH_STATUS,
+    /**
+     * Contadores de erro da camada GPON (FEC corrigido, erro de cabeçalho, pacotes descartados) —
+     * issue #29. Distinto de `READ_SIGNAL`: sinal é potência/temperatura instantânea, isto é
+     * contador cumulativo de degradação de linha óptica.
+     */
+    READ_GPON_ERROR_COUNTERS,
+    /**
+     * Status físico por porta LAN Ethernet (link up/down, velocidade negociada, erros por porta) —
+     * issue #30. Capability genérica (não vendor-specific): qualquer equipamento com portas LAN
+     * gerenciáveis pode implementá-la, hoje só o driver Nokia G-1425G-B tem parser real.
+     */
+    READ_LAN_PORT_STATUS,
     SET_WIFI_SSID,
     SET_WIFI_PASSWORD,
     SET_WIFI_CHANNEL,

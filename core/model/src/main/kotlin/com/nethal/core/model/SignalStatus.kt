@@ -14,4 +14,19 @@ data class SignalStatus(
     val transceiverTemperatureCelsius: Double? = null,
     val supplyVoltageVolts: Double? = null,
     val laserCurrentMilliAmps: Double? = null,
+    /**
+     * Threshold inferior de RX configurado pela operadora/fabricante no próprio transceptor óptico
+     * (issue #28) — abaixo deste valor o firmware considera o sinal em falha. Extensão de
+     * `READ_SIGNAL` (decisão registrada na issue: reaproveitar este modelo em vez de criar
+     * capability nova, já que é o mesmo conceito — potência óptica — só com contexto de limite).
+     */
+    val rxPowerLowerThresholdDbm: Double? = null,
+    /** Threshold superior de RX — acima deste valor o transceptor considera excesso de sinal (satura o receptor). */
+    val rxPowerUpperThresholdDbm: Double? = null,
+    /**
+     * Margem entre o RX atual e [rxPowerLowerThresholdDbm] (`rxPowerDbm - rxPowerLowerThresholdDbm`),
+     * já calculada pelo driver — não fica a cargo do app repetir essa conta (issue #28, critério de
+     * aceite explícito). `null` se `rxPowerDbm` ou o threshold inferior não estiverem disponíveis.
+     */
+    val rxPowerMarginToLowerThresholdDb: Double? = null,
 )
