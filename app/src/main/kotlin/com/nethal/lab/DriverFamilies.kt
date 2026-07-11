@@ -14,8 +14,9 @@ import com.nethal.core.driver.family.tplink.xdrds.TpLinkXdrDsDriverFamilyFactory
  *
  * Vive em `:app` (composition root fino), por decisão da ADR 0002: cada `:drivers:*` expõe sua
  * `DriverFamilyFactory` pública via SPI e o `:app` é o único lugar que conhece todas elas e as
- * registra. `NetHalApplication`/`ViewModelFactory` montam o `CapabilityEngine` real a partir daqui
- * (usado por `CapabilitiesViewModel`). Este arquivo é a única fonte de verdade de quais Driver
+ * registra. `NetHalApplication` monta o `DriverFamilyRegistry` a partir daqui e o injeta no grafo de
+ * pareamento por autenticação (`:feature:pairing-auth`), que constrói o `CapabilityEngine` real da
+ * sessão. Este arquivo é a única fonte de verdade de quais Driver
  * Families existem — os diagnósticos manuais por driver (`:drivers:*:xxxManualCheck`) montam
  * registries locais de fábrica única e não dependem deste agregador.
  *

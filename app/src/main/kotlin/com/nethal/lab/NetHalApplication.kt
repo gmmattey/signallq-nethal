@@ -30,6 +30,8 @@ import com.nethal.lab.data.catalog.ManualIdentificationDataStoreRepository
 import com.nethal.lab.data.catalog.manualIdentificationDataStore
 import com.nethal.lab.data.consent.ConsentDataStoreRepository
 import com.nethal.lab.data.consent.consentDataStore
+import com.nethal.lab.data.onboarding.OnboardingCompletionDataStoreRepository
+import com.nethal.lab.data.onboarding.onboardingDataStore
 import com.nethal.lab.data.discovery.AndroidNetworkEnvironmentReader
 import com.nethal.lab.data.telemetry.TelemetryDeviceIdDataStoreRepository
 import com.nethal.lab.data.telemetry.telemetryDataStore
@@ -51,6 +53,15 @@ class NetHalApplication : Application() {
      * (`MainActivity`) e escrita pelo seletor em Configurações (`SettingsViewModel`).
      */
     lateinit var themeModeRepository: ThemeModeRepository
+        private set
+
+    /**
+     * Marcador "onboarding já concluído" (issue #113). Lido no composition root (`MainActivity` →
+     * `NetHalNavHost`) para decidir o `startDestination`: primeira instalação abre o onboarding;
+     * launches seguintes entram direto no pareamento. Concreto em `:app`, sem contrato em `core` —
+     * único consumidor é a navegação (ver KDoc de `OnboardingCompletionDataStoreRepository`).
+     */
+    lateinit var onboardingCompletionRepository: OnboardingCompletionDataStoreRepository
         private set
 
     lateinit var networkEnvironmentReader: NetworkEnvironmentReader
@@ -120,6 +131,7 @@ class NetHalApplication : Application() {
         super.onCreate()
         consentRepository = ConsentDataStoreRepository(consentDataStore)
         themeModeRepository = ThemeModeDataStoreRepository(themeDataStore)
+        onboardingCompletionRepository = OnboardingCompletionDataStoreRepository(onboardingDataStore)
 
         val telemetryConsentGranted = MutableStateFlow(false)
         applicationScope.launch {

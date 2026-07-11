@@ -57,6 +57,7 @@ dependencies {
     implementation(project(":core:capability"))
     implementation(project(":core:navigation"))
     implementation(project(":core:designsystem"))
+    implementation(project(":feature:onboarding"))
     implementation(project(":feature:pairing-discovery"))
     implementation(project(":feature:pairing-auth"))
     implementation(project(":drivers:nokia-gpon"))

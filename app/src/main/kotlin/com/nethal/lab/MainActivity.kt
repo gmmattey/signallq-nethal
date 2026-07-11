@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.nethal.lab.ui.common.NetHalViewModelFactory
 import com.nethal.lab.ui.navigation.NetHalNavHost
+import com.nethal.lab.ui.onboarding.onboardingPermissionsState
 import com.nethal.core.designsystem.theme.NetHalLabTheme
 import com.nethal.core.designsystem.theme.ThemeMode
 
@@ -20,8 +21,6 @@ class MainActivity : ComponentActivity() {
         val viewModelFactory = NetHalViewModelFactory(
             consentRepository = app.consentRepository,
             themeModeRepository = app.themeModeRepository,
-            driverRegistry = app.driverRegistry,
-            driverFamilyRegistry = app.driverFamilyRegistry,
         )
 
         setContent {
@@ -33,6 +32,12 @@ class MainActivity : ComponentActivity() {
             NetHalLabTheme(themeMode = themeMode) {
                 NetHalNavHost(
                     viewModelFactory = viewModelFactory,
+                    driverRegistry = app.driverRegistry,
+                    consentRepository = app.consentRepository,
+                    onboardingCompletionRepository = app.onboardingCompletionRepository,
+                    // Estado real das permissões lido a cada composição da tela `1e` (resumo) — a
+                    // permissão de notificação pode ter sido concedida na tela `1d` desde o launch.
+                    onboardingPermissionsState = { onboardingPermissionsState(this) },
                     pairingDiscoveryDependencies = app.pairingDiscoveryDependencies,
                     pairingAuthDependencies = app.pairingAuthDependencies,
                 )
