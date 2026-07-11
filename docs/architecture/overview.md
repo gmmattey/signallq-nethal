@@ -37,7 +37,13 @@ Mandatory layer before any write action.
 
 ## Telemetry Collector
 
-Ainda não implementado. Quando existir, é o único ponto autorizado a aplicar as regras de mascaramento/hash da spec §8.9 (SSID, MAC, IP público) — na fronteira de exportação, quando um dado sai do dispositivo. Modelos internos de Driver Family (ex.: `TpLinkStokLuciSnapshot`) carregam dado bruto para uso local do NetHAL Lab; sanitização não é responsabilidade do parser de um driver. Ver [`adr/0001-fronteira-sanitizacao-telemetria.md`](adr/0001-fronteira-sanitizacao-telemetria.md).
+Implementado em `core/telemetry/` (issue #97, Lane A — sessão/capability; Lane B de eventos de produto ainda não, bloqueada por #66). É o único ponto autorizado a aplicar as regras de mascaramento/hash da spec §8.9 (SSID, MAC, IP público) — na fronteira de exportação, quando um dado sai do dispositivo. Modelos internos de Driver Family (ex.: `TpLinkStokLuciSnapshot`) continuam carregando dado bruto para uso local do NetHAL Lab; sanitização não é responsabilidade do parser de um driver. Ver [`adr/0001-fronteira-sanitizacao-telemetria.md`](adr/0001-fronteira-sanitizacao-telemetria.md).
+
+- `TelemetryCollector` (interface) — `sendDiagnosticSession`/`sendCapabilityResult`, fire-and-forget, nunca lança exceção ao chamador.
+- `DiagnosticSessionEvent`/`CapabilityResultEvent` — únicos tipos de entrada aceitos; não têm campo de dado bruto de rede (SSID/MAC/IP/hostname) por desenho, então é estruturalmente impossível repassar `CapabilityPayload` cru por este caminho.
+- `TelemetryReasonCode.classify(rawReason)` — converte motivo de falha de driver (texto livre, pode conter IP/hostname) num vocabulário fechado antes de exportar; nunca repassa o texto de entrada.
+- `HttpTelemetryCollector` — implementação real, gate por `ConsentScope.TELEMETRY_BETA` (`consentProvider: () -> Boolean`, default seguro é o chamador nunca injetar `{ true }` sem checagem real), endpoint (`TelemetryEndpointConfig`) vazio por padrão — rotas `/ingest/nethal/...` do `signallq-admin-worker` ainda não existem (depende de `linka-android#886`).
+- `device_id`: UUID v4 (`TelemetryDeviceId.generate`), nunca derivado de hardware. `core:telemetry` é JVM puro (mesmo padrão de `core:consent`) — só define `TelemetryDeviceIdRepository` (contrato); persistência real via DataStore Preferences fica em `app/src/main/kotlin/com/nethal/lab/data/telemetry/TelemetryDeviceIdDataStore.kt`, mesmo mecanismo de `ConsentDataStoreRepository`.
 
 ## Driver Registry, Driver Family e Compatibility Catalog
 

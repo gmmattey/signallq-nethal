@@ -48,6 +48,7 @@ dependencies {
     implementation(project(":core:protocol"))
     implementation(project(":core:catalog"))
     implementation(project(":core:consent"))
+    implementation(project(":core:telemetry"))
     implementation(project(":core:discovery"))
     implementation(project(":core:fingerprint"))
     implementation(project(":core:capability"))
