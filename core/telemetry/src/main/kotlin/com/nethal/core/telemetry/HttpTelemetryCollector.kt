@@ -9,6 +9,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 private const val CONNECT_TIMEOUT_MILLIS = 5_000
 private const val READ_TIMEOUT_MILLIS = 5_000
@@ -36,6 +37,17 @@ class HttpTelemetryCollector(
 ) : TelemetryCollector {
 
     private val json = Json { encodeDefaults = true }
+
+    /**
+     * Id de "sessão de uso" (independente do [DiagnosticSessionEvent.sessionId]) — gerado a cada
+     * [TelemetryProductEventName.SESSION_START], anexado a todo evento de produto subsequente
+     * ([TelemetryProductEventName.SCREEN_VIEW]/[TelemetryProductEventName.FEATURE_CRASH]) até o
+     * próximo [TelemetryProductEventName.SESSION_END], quando é limpo. Mesmo espírito do `session_id`
+     * de `analytics_events` do SignallQ. `AtomicReference` porque `screen_view` (disparado pela
+     * navegação Compose) e `session_start`/`session_end`/`feature_crash` (ciclo de vida do
+     * `Application`) podem chamar este coletor de corrotinas diferentes.
+     */
+    private val analyticsSessionId = AtomicReference<String?>(null)
 
     override suspend fun sendDiagnosticSession(session: DiagnosticSessionEvent) {
         if (!consentProvider()) return
@@ -78,6 +90,35 @@ class HttpTelemetryCollector(
         }
     }
 
+    override suspend fun sendProductEvent(event: ProductEvent) {
+        if (!consentProvider()) return
+        // session_start abre um novo id de sessão de uso antes de montar o payload — o próprio
+        // evento de abertura já sai com o id novo. session_end lê o id vigente e só limpa depois de
+        // montar o payload, para o evento de fechamento carregar o mesmo id que os screen_view da
+        // sessão que está terminando.
+        if (event.name == TelemetryProductEventName.SESSION_START) {
+            analyticsSessionId.set(UUID.randomUUID().toString())
+        }
+        send(path = ANALYTICS_PATH) {
+            val payload = ProductEventWirePayload(
+                id = UUID.randomUUID().toString(),
+                eventName = event.name.name.lowercase(),
+                sessionId = analyticsSessionId.get(),
+                screenName = event.screenName,
+                errorType = event.errorType,
+                createdAt = clock(),
+                appVersion = event.appVersion,
+                environment = event.environment,
+                versionCode = event.versionCode,
+                deviceId = deviceIdRepository.getOrCreateDeviceId(),
+            )
+            json.encodeToString(payload)
+        }
+        if (event.name == TelemetryProductEventName.SESSION_END) {
+            analyticsSessionId.set(null)
+        }
+    }
+
     private suspend fun send(path: String, buildBody: suspend () -> String) {
         if (!endpoint.isConfigured) {
             onDeliveryFailure(path, "endpoint não configurado (aguardando linka-android#886)")
@@ -117,6 +158,7 @@ class HttpTelemetryCollector(
     companion object {
         private const val SESSION_PATH = "/ingest/nethal/session"
         private const val CAPABILITY_PATH = "/ingest/nethal/capability"
+        private const val ANALYTICS_PATH = "/ingest/nethal/analytics"
     }
 }
 
@@ -148,5 +190,20 @@ private data class CapabilityWirePayload(
     val reasonCode: String?,
     val durationMs: Long?,
     val createdAt: Long,
+    val deviceId: String,
+)
+
+/** Formato de linha em `nethal_analytics_events` (issue #97, migration companion `linka-android#886`). */
+@Serializable
+private data class ProductEventWirePayload(
+    val id: String,
+    val eventName: String,
+    val sessionId: String?,
+    val screenName: String?,
+    val errorType: String?,
+    val createdAt: Long,
+    val appVersion: String,
+    val environment: String,
+    val versionCode: Int,
     val deviceId: String,
 )

@@ -163,6 +163,138 @@ class HttpTelemetryCollectorTest {
             assertTrue(lastBody.get().orEmpty().contains("stable-uuid-1234"))
         }
 
+    @Test
+    fun `gate de consentimento bloqueia sendProductEvent quando consentProvider retorna false`() = runBlocking {
+        val collector = HttpTelemetryCollector(
+            endpoint = TelemetryEndpointConfig(baseUrl = baseUrl(), ingestKey = "test-key"),
+            deviceIdRepository = fakeDeviceIdRepository(),
+            consentProvider = { false },
+        )
+
+        collector.sendProductEvent(sampleScreenView())
+
+        assertEquals("nenhuma requisição HTTP deveria sair sem consentimento", 0, requestCount.get())
+    }
+
+    @Test
+    fun `com consentimento e endpoint configurado, envia evento de produto para o path correto`() = runBlocking {
+        val collector = HttpTelemetryCollector(
+            endpoint = TelemetryEndpointConfig(baseUrl = baseUrl(), ingestKey = "test-key"),
+            deviceIdRepository = fakeDeviceIdRepository(),
+            consentProvider = { true },
+        )
+
+        collector.sendProductEvent(sampleScreenView())
+
+        assertEquals(1, requestCount.get())
+        assertEquals("/ingest/nethal/analytics", receivedRequests.single())
+    }
+
+    @Test
+    fun `payload de evento de produto nunca contem campo proibido pela spec 8-9`() = runBlocking {
+        val collector = HttpTelemetryCollector(
+            endpoint = TelemetryEndpointConfig(baseUrl = baseUrl(), ingestKey = "test-key"),
+            deviceIdRepository = fakeDeviceIdRepository(),
+            consentProvider = { true },
+        )
+
+        collector.sendProductEvent(sampleScreenView())
+
+        val body = lastBody.get().orEmpty().lowercase()
+        assertForbiddenFieldsAbsent(body)
+    }
+
+    @Test
+    fun `session_start gera um sessionId de uso que e reaproveitado pelos screen_view seguintes`() = runBlocking {
+        val bodies = mutableListOf<String>()
+        val collector = HttpTelemetryCollector(
+            endpoint = TelemetryEndpointConfig(baseUrl = baseUrl(), ingestKey = "test-key"),
+            deviceIdRepository = fakeDeviceIdRepository(),
+            consentProvider = { true },
+        )
+
+        collector.sendProductEvent(sampleSessionStart())
+        bodies.add(lastBody.get().orEmpty())
+        collector.sendProductEvent(sampleScreenView())
+        bodies.add(lastBody.get().orEmpty())
+
+        val sessionStartId = Regex("\"sessionId\":\"([^\"]+)\"").find(bodies[0])?.groupValues?.get(1)
+        val screenViewId = Regex("\"sessionId\":\"([^\"]+)\"").find(bodies[1])?.groupValues?.get(1)
+
+        assertTrue("session_start deveria carregar um sessionId gerado", !sessionStartId.isNullOrBlank())
+        assertEquals(
+            "screen_view disparado depois de session_start deveria carregar o mesmo sessionId",
+            sessionStartId,
+            screenViewId,
+        )
+    }
+
+    @Test
+    fun `session_end limpa o sessionId de uso - screen_view seguinte nao carrega mais o id antigo`() = runBlocking {
+        val collector = HttpTelemetryCollector(
+            endpoint = TelemetryEndpointConfig(baseUrl = baseUrl(), ingestKey = "test-key"),
+            deviceIdRepository = fakeDeviceIdRepository(),
+            consentProvider = { true },
+        )
+
+        collector.sendProductEvent(sampleSessionStart())
+        val sessionStartId = Regex("\"sessionId\":\"([^\"]+)\"").find(lastBody.get().orEmpty())?.groupValues?.get(1)
+
+        collector.sendProductEvent(sampleSessionEnd())
+        collector.sendProductEvent(sampleScreenView())
+        val screenViewAfterEnd = lastBody.get().orEmpty()
+
+        assertTrue(
+            "screen_view após session_end não deveria carregar o sessionId da sessão encerrada",
+            sessionStartId == null || !screenViewAfterEnd.contains(sessionStartId),
+        )
+    }
+
+    @Test
+    fun `feature_crash carrega so o nome da classe da excecao em errorType`() = runBlocking {
+        val collector = HttpTelemetryCollector(
+            endpoint = TelemetryEndpointConfig(baseUrl = baseUrl(), ingestKey = "test-key"),
+            deviceIdRepository = fakeDeviceIdRepository(),
+            consentProvider = { true },
+        )
+
+        collector.sendProductEvent(sampleFeatureCrash())
+
+        val body = lastBody.get().orEmpty()
+        assertTrue(body.contains("\"errorType\":\"IllegalStateException\""))
+        assertFalse("nunca deveria carregar mensagem de exceção", body.contains("mensagem sensível"))
+    }
+
+    private fun sampleScreenView() = ProductEvent(
+        name = TelemetryProductEventName.SCREEN_VIEW,
+        screenName = "home/status",
+        appVersion = "1.0.0",
+        environment = "production",
+        versionCode = 1,
+    )
+
+    private fun sampleSessionStart() = ProductEvent(
+        name = TelemetryProductEventName.SESSION_START,
+        appVersion = "1.0.0",
+        environment = "production",
+        versionCode = 1,
+    )
+
+    private fun sampleSessionEnd() = ProductEvent(
+        name = TelemetryProductEventName.SESSION_END,
+        appVersion = "1.0.0",
+        environment = "production",
+        versionCode = 1,
+    )
+
+    private fun sampleFeatureCrash() = ProductEvent(
+        name = TelemetryProductEventName.FEATURE_CRASH,
+        errorType = "IllegalStateException",
+        appVersion = "1.0.0",
+        environment = "production",
+        versionCode = 1,
+    )
+
     private fun assertForbiddenFieldsAbsent(bodyLowercase: String) {
         val forbiddenSubstrings = listOf(
             "ssid",

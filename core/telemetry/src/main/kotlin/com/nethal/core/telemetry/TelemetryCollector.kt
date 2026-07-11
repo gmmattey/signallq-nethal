@@ -62,6 +62,38 @@ data class CapabilityResultEvent(
 )
 
 /**
+ * Allowlist fechada de "evento de produto" (issue #97, Lane B) — mesmo vocabulário fixo do
+ * `analytics_events` do SignallQ (`event_name TEXT NOT NULL`, allowlist validada no Worker). Fechado
+ * por enum, não por string livre: nenhum chamador consegue inventar um nome de evento novo sem passar
+ * por este arquivo.
+ */
+enum class TelemetryProductEventName {
+    SCREEN_VIEW,
+    SESSION_START,
+    SESSION_END,
+    FEATURE_CRASH,
+}
+
+/**
+ * Payload de "evento de produto" (issue #97, Lane B) — uso do app (tela vista, sessão de uso,
+ * crash), independente da sessão de diagnóstico de [DiagnosticSessionEvent]. [screenName] é sempre o
+ * nome de **rota** já registrada no `NavHostController` (`OnboardingRoutes.*`,
+ * `BottomNavDestination.*.route`, `AdvancedToolDestination.*.route`, rotas de
+ * `PairingDiscoveryRoutes`/`PairingAuthRoutes`) — nunca um valor lido do equipamento. [errorType] é
+ * sempre só o nome da classe da exceção (`Throwable::class.simpleName`), nunca mensagem ou
+ * stacktrace, que podem carregar dado sensível (ver `Thread.UncaughtExceptionHandler` em
+ * `NetHalApplication`).
+ */
+data class ProductEvent(
+    val name: TelemetryProductEventName,
+    val screenName: String? = null,
+    val errorType: String? = null,
+    val appVersion: String,
+    val environment: String,
+    val versionCode: Int,
+)
+
+/**
  * Coletor de telemetria do NetHAL Lab para o SignallQ Console (`signallq-admin-worker`), issue #97.
  *
  * Fire-and-forget: nunca bloqueia o fluxo do usuário, nunca lança exceção ao chamador — qualquer
@@ -71,11 +103,12 @@ data class CapabilityResultEvent(
  * Gate de consentimento (`ConsentScope.TELEMETRY_BETA`) é responsabilidade da implementação, checado
  * como primeira linha de cada método — ver [HttpTelemetryCollector].
  *
- * Cobre só a Lane A da issue #97 (sessão + capability, ortogonal à tela). Eventos de produto
- * (`screen_view`/`session_start`/etc., Lane B) dependem da decisão de #66 sobre a taxonomia de tela
- * do redesenho e ficam fora deste contrato por ora.
+ * Cobre as Lanes A (sessão + capability, ortogonal à tela) e B (eventos de produto) da issue #97. A
+ * taxonomia de tela de Lane B usa as rotas reais do redesenho (#67-#96), não o fluxo linear antigo
+ * (Telas 1-6) referenciado pela spec original — ver KDoc de [ProductEvent].
  */
 interface TelemetryCollector {
     suspend fun sendDiagnosticSession(session: DiagnosticSessionEvent)
     suspend fun sendCapabilityResult(result: CapabilityResultEvent)
+    suspend fun sendProductEvent(event: ProductEvent)
 }
