@@ -245,6 +245,10 @@ private fun AdvancedToolsSection(tools: List<AdvancedToolDestination>, onOpenToo
 private fun AdvancedToolDestination.iconRes(): Int = when (this) {
     AdvancedToolDestination.PING -> R.drawable.ic_tool_ping
     AdvancedToolDestination.PORT_CHECK -> R.drawable.ic_tool_port_check
+    AdvancedToolDestination.SPEEDTEST -> R.drawable.ic_tool_speedtest
+    AdvancedToolDestination.DNS_LOOKUP -> R.drawable.ic_tool_dns
+    AdvancedToolDestination.TRACEROUTE -> R.drawable.ic_tool_traceroute
+    AdvancedToolDestination.REBOOT_WAN -> R.drawable.ic_tool_reboot_wan
 }
 
 @Composable

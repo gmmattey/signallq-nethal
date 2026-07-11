@@ -4,46 +4,51 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.nethal.core.capability.CapabilityEngine
 import com.nethal.core.designsystem.R
 import com.nethal.core.navigation.BottomNavDestination
+import com.nethal.feature.devices.devicesGraph
 import com.nethal.feature.settings.settingsGraph
+import com.nethal.feature.status.statusGraph
+import com.nethal.feature.toolsdns.toolsDnsGraph
+import com.nethal.feature.toolsping.toolsPingGraph
+import com.nethal.feature.toolsrebootwan.rebootWanGraph
+import com.nethal.feature.toolsspeedtest.speedtestGraph
+import com.nethal.feature.toolstraceroute.tracerouteGraph
+import com.nethal.feature.wifinetwork.wifiNetworkGraph
 import com.nethal.lab.BuildConfig
 import com.nethal.lab.ui.common.NetHalViewModelFactory
 
 /**
  * Host de navegação inferior do NetHAL Lab ("modo uso diário", #67) — composition root montado em
- * `:app` (ADR 0002 Fase 2). Hoje o `NavHost` interno aponta para composables placeholder simples;
- * quando os módulos `:feature:status` / `:feature:wifi-network` / `:feature:devices` nascerem
- * (issues #83, #84, #86), cada um passa a expor seu próprio `NavGraphBuilder.xyzGraph()` usando as
- * rotas de [BottomNavDestination] — este host não muda de forma, só troca `composable(placeholder)`
- * por `xyzGraph(navController)`.
+ * `:app` (ADR 0002 Fase 2). Consolidação da issue #147: as quatro abas montam o `NavGraphBuilder`
+ * real de cada módulo (`statusGraph`, `wifiNetworkGraph`, `devicesGraph`, `settingsGraph`) — nenhuma
+ * delas usa mais composable placeholder. O mesmo `NavHost`/`NavHostController` também hospeda os 5
+ * grafos de "Ferramentas avançadas" (Ping+Porta, Teste de velocidade, DNS Lookup, Traceroute,
+ * Reiniciar WAN), irmãos de `settingsGraph` — é o que `SettingsGraph.kt` consulta via
+ * `navController.graph.findNode(...)` para decidir quais entradas mostrar em Configurações.
  *
- * Configurações já é o real: `:feature:settings` (#85) nasceu modular, e este host monta
- * `settingsGraph()` no lugar do antigo `composable(BottomNavDestination.SETTINGS.route) { ... }`
- * inline que reaproveitava a `SettingsScreen` de `:app` (essa `SettingsScreen` não existe mais em
- * `:app` — moveu de módulo, não foi duplicada). As outras três abas ainda não têm conteúdo real, só
- * a casca (spec completa em `docs/design/design-system.dc.html` seção 1l).
+ * [capabilityEngine] é a sessão autenticada ao vivo do equipamento pareado nesta execução (`null`
+ * quando não há sessão) e [pairedDeviceIp] é o IP desse equipamento — ambos vêm de
+ * `NetHalNavHost` (handoff do pareamento) e são repassados tal qual para quem consome (Status, Rede,
+ * Ping/Verificação de porta, Reiniciar WAN). Nenhuma aba abre ou fecha essa sessão — o dono do ciclo
+ * de vida é `NetHalNavHost` (`DisposableEffect` na composable de `Routes.HOME`).
  *
  * Layout e comportamento (altura 80dp, padding 12/16dp, ícone 24dp, indicador pill 64×32dp raio
  * 16dp, rótulo 12sp 600/400) usam o default do `NavigationBar` Material 3 — bate com a spec sem
@@ -57,6 +62,8 @@ import com.nethal.lab.ui.common.NetHalViewModelFactory
 @Composable
 fun BottomNavHost(
     viewModelFactory: NetHalViewModelFactory,
+    capabilityEngine: CapabilityEngine?,
+    pairedDeviceIp: String?,
     navController: NavHostController = rememberNavController(),
 ) {
     Scaffold(
@@ -92,6 +99,7 @@ fun BottomNavHost(
             }
         },
     ) { innerPadding ->
+        val context = LocalContext.current
         NavHost(
             navController = navController,
             startDestination = BottomNavDestination.STATUS.route,
@@ -107,29 +115,23 @@ fun BottomNavHost(
             },
             exitTransition = { fadeOut(animationSpec = tween(durationMillis = 90)) },
         ) {
-            composable(BottomNavDestination.STATUS.route) {
-                NavPlaceholderScreen(
-                    testTag = "home_status_screen",
-                    text = "Conteúdo de Status — casca (issue #83)",
-                )
-            }
-            composable(BottomNavDestination.NETWORK.route) {
-                NavPlaceholderScreen(
-                    testTag = "home_network_screen",
-                    text = "Conteúdo de Rede — casca (issue #84)",
-                )
-            }
-            composable(BottomNavDestination.DEVICES.route) {
-                NavPlaceholderScreen(
-                    testTag = "home_devices_screen",
-                    text = "Conteúdo de Dispositivos — casca (issue #86)",
-                )
-            }
+            statusGraph(capabilityEngine)
+            wifiNetworkGraph { capabilityEngine }
+            devicesGraph()
             settingsGraph(
                 navController = navController,
                 viewModelFactory = viewModelFactory,
                 appVersionLabel = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
             )
+
+            // ── Ferramentas avançadas (issue #147) — mesmo NavHost/NavHostController de settingsGraph,
+            // é o que torna `navController.graph.findNode(route)` verdadeiro para cada entrada em
+            // AdvancedToolDestination e faz a seção aparecer em Configurações. ──────────────────────
+            toolsPingGraph(navController = navController, defaultTargetHost = pairedDeviceIp)
+            speedtestGraph(navController)
+            toolsDnsGraph(context = context, onBack = { navController.popBackStack() })
+            tracerouteGraph(navController)
+            rebootWanGraph(navController) { capabilityEngine }
         }
     }
 }
@@ -146,15 +148,3 @@ private val bottomNavItems = listOf(
     BottomNavItem(BottomNavDestination.DEVICES, "Dispositivos", R.drawable.ic_nav_devices),
     BottomNavItem(BottomNavDestination.SETTINGS, "Configurações", R.drawable.ic_nav_settings),
 )
-
-@Composable
-private fun NavPlaceholderScreen(testTag: String, text: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag(testTag),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = text, style = MaterialTheme.typography.bodyMedium)
-    }
-}

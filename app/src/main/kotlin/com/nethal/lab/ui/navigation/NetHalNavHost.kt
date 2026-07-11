@@ -1,6 +1,7 @@
 package com.nethal.lab.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +12,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.nethal.core.capability.CapabilityEngine
 import com.nethal.core.catalog.DriverRegistry
 import com.nethal.core.consent.ConsentRepository
 import com.nethal.core.model.NetworkTarget
@@ -68,7 +70,10 @@ private object Routes {
  *   Ao concluir, marca o onboarding e navega para o pareamento removendo o onboarding da back stack.
  * - **Handoff pareamento → uso diário:** `2e` (Conectando) confirma sucesso via `onAuthenticated` e
  *   entra **direto** no bottom nav. As telas Capabilities/Report foram descontinuadas (decisão #66):
- *   seu conteúdo migra para os cards ao vivo da tela Status (`:feature:status`, #83).
+ *   seu conteúdo migra para os cards ao vivo da tela Status (`:feature:status`, #83). A sessão
+ *   (`CapabilityEngine`) e o IP do equipamento pareado seguem junto (issue #147) — `BottomNavHost`
+ *   os repassa para Status/Rede/Ferramentas; o ciclo de vida da credencial em memória é fechado por
+ *   um `DisposableEffect` na composable de `Routes.HOME`, nunca no momento da autenticação.
  * - **Trocar de equipamento a partir de Configurações** (ação ainda inexistente — #85 cortou
  *   "EQUIPAMENTO" do protótipo): `pairingDiscoveryGraph` é irmão de `Routes.HOME` no mesmo `NavHost`,
  *   então quando a ação existir basta `navigate(PairingDiscoveryRoutes.GRAPH)` a partir de Home — sem
@@ -102,6 +107,13 @@ fun NetHalNavHost(
     // ViewModels dessas telas recebem esses valores no construtor.
     var selectedTarget by remember { mutableStateOf<NetworkTarget?>(null) }
     var matchedProfileId by remember { mutableStateOf<String?>(null) }
+
+    // Sessão ao vivo do "uso diário" (#147) — o handoff pareamento → Home (`onAuthenticated`, abaixo)
+    // preenche os dois; `BottomNavHost` só lê, nunca abre/fecha a sessão. Guardado no mesmo escopo
+    // do NavHost (não dentro de um `composable {}`) pelo mesmo motivo de `selectedTarget`: precisa
+    // sobreviver à navegação até `Routes.HOME`.
+    var homeCapabilityEngine by remember { mutableStateOf<CapabilityEngine?>(null) }
+    var homeDeviceIp by remember { mutableStateOf<String?>(null) }
 
     val startDestination = if (completed) {
         PairingDiscoveryRoutes.GRAPH
@@ -148,18 +160,18 @@ fun NetHalNavHost(
             matchedProfileId = matchedProfileId,
             dependencies = pairingAuthDependencies,
             onAuthenticated = { engine ->
-                // Handoff pareamento → uso diário. As telas Capabilities/Report foram descontinuadas
-                // (decisão #66) — o consumidor da sessão ao vivo passa a ser a tela Status
-                // (`:feature:status`, #83), hoje ainda uma casca (placeholder). Como NÃO há consumidor
-                // da sessão neste momento, encerramos determinísticamente a sessão autenticada
-                // (`closeSession()` descarta a credencial em memória) em vez de deixá-la pendurada sem
-                // dono até o GC — alinhado ao não-negociável "sem credencial armazenada".
-                //
-                // QUANDO #83 for real: NÃO fechar aqui — encaminhar `engine` para o host de uso diário
-                // (Status) alimentar os cards ao vivo, transferindo a posse do `closeSession()` para a
-                // tela Status. Ponto de revisão de segurança da Marisa (ciclo de vida da credencial em
-                // memória).
-                engine.closeSession()
+                // Handoff pareamento → uso diário (issue #147). A sessão autenticada NÃO fecha aqui
+                // mais — `:feature:status` (#83) e `:feature:wifi-network` (#84) já são consumidores
+                // reais da sessão ao vivo (cards de Status, estado de Wi-Fi), então encerrar
+                // `closeSession()` neste ponto apagaria a credencial antes de qualquer aba chegar a
+                // usá-la. Em vez disso, `engine` e o IP do equipamento pareado (capturado ANTES de
+                // zerar `selectedTarget`, senão se perde) seguem para `BottomNavHost` via
+                // `homeCapabilityEngine`/`homeDeviceIp`; a posse do ciclo de vida passa para o
+                // `DisposableEffect` da composable de `Routes.HOME`, abaixo — ele é quem chama
+                // `closeSession()`, alinhado ao não-negociável "sem credencial armazenada" (sessão só
+                // em memória, só enquanto o consumidor estiver vivo).
+                homeCapabilityEngine = engine
+                homeDeviceIp = selectedTarget?.ip
                 selectedTarget = null
                 matchedProfileId = null
                 navController.navigate(Routes.HOME) {
@@ -177,7 +189,19 @@ fun NetHalNavHost(
 
         // ── Uso diário (bottom nav) — #67 ───────────────────────────────────────────────────────
         composable(Routes.HOME) {
-            BottomNavHost(viewModelFactory = viewModelFactory)
+            // Garantia estrutural do não-negociável "sem credencial armazenada": a sessão em memória
+            // não deve sobreviver além do consumidor. Hoje não existe fluxo de "trocar
+            // equipamento"/logout que tire o usuário de Home de volta ao pareamento (gap conhecido,
+            // #85), então na prática isso só dispara quando esta composable é destruída (processo
+            // encerrado/Activity recriada) — mas a garantia fica correta desde já, não adiada.
+            DisposableEffect(Unit) {
+                onDispose { homeCapabilityEngine?.closeSession() }
+            }
+            BottomNavHost(
+                viewModelFactory = viewModelFactory,
+                capabilityEngine = homeCapabilityEngine,
+                pairedDeviceIp = homeDeviceIp,
+            )
         }
     }
 }

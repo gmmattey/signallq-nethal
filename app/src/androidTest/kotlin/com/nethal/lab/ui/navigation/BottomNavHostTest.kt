@@ -16,11 +16,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Cobre a troca entre os 4 destinos do host de bottom nav (#67) — casca de infraestrutura, sem
- * conteúdo final das abas Status/Rede/Dispositivos (issues #83, #84, #86). Configurações monta o
- * `settingsGraph()` real de `:feature:settings` (#85); aqui verificada quanto à presença e à
- * navegação interna para o item de privacidade absorvido de `PrivacyScreen` (decisão #66) — o
- * conteúdo em si (toggle de programa beta etc.) tem cobertura própria em `SettingsViewModelTest`.
+ * Cobre a troca entre os 4 destinos do host de bottom nav (#67) — desde a consolidação da issue
+ * #147, as quatro abas montam o `NavGraphBuilder` real de cada módulo (`statusGraph`,
+ * `wifiNetworkGraph`, `devicesGraph`, `settingsGraph`), sem `capabilityEngine`/`pairedDeviceIp`
+ * (`null`/`null`, mesmo contrato de "sem sessão pareada" tratado honestamente por cada tela).
+ * Configurações monta o `settingsGraph()` real de `:feature:settings` (#85); aqui verificada quanto
+ * à presença e à navegação interna para o item de privacidade absorvido de `PrivacyScreen` (decisão
+ * #66) — o conteúdo em si (toggle de programa beta etc.) tem cobertura própria em
+ * `SettingsViewModelTest`.
  */
 @RunWith(AndroidJUnit4::class)
 class BottomNavHostTest {
@@ -42,14 +45,18 @@ class BottomNavHostTest {
 
         composeRule.setContent {
             NetHalLabTheme {
-                BottomNavHost(viewModelFactory = viewModelFactory)
+                BottomNavHost(
+                    viewModelFactory = viewModelFactory,
+                    capabilityEngine = null,
+                    pairedDeviceIp = null,
+                )
             }
         }
     }
 
     @Test
     fun destinoInicialEStatus() {
-        composeRule.onNodeWithTag("home_status_screen").assertExists()
+        composeRule.onNodeWithTag("status_screen").assertExists()
         composeRule.onNodeWithText("Status").assertIsSelected()
     }
 
@@ -93,7 +100,7 @@ class BottomNavHostTest {
         composeRule.onNodeWithText("Rede").performClick()
         composeRule.onNodeWithText("Status").performClick()
 
-        composeRule.onNodeWithTag("home_status_screen").assertExists()
+        composeRule.onNodeWithTag("status_screen").assertExists()
         composeRule.onNodeWithText("Status").assertIsSelected()
     }
 }

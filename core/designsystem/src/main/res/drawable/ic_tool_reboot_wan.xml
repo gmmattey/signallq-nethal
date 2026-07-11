@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+      Ícone "reboot" da entrada Reiniciar interface WAN em FERRAMENTAS AVANÇADAS (issue #147,
+      consolidação de #95/#103) — conversão direta do glifo oficial do set de marca
+      docs/design/assets/icons/dark/reboot.svg (mesmo pathData/strokeColor/strokeWidth), não um
+      desenho novo. Cor resolvida em runtime via `Icon(tint = ...)` no chamador (SettingsScreen),
+      não fixa aqui.
+    -->
+    <path
+        android:pathData="M20,12 A8,8 0 1,0 17.4,17.9"
+        android:strokeColor="#8891A8"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M20,6 V12 H14"
+        android:strokeColor="#8891A8"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>

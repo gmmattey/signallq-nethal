@@ -35,7 +35,7 @@ O NetHAL Lab tem **um único `NavHost` raiz** (`NetHalNavHost`), montado pelo co
 | Onboarding (1a→1f) | `onboardingGraph()` | `:feature:onboarding` | #68-73 |
 | Pareamento por descoberta (2a/2b/2g/2h/2i) | `pairingDiscoveryGraph()` | `:feature:pairing-discovery` | #74, #75, #80, #81, #82 |
 | Pareamento por autenticação (2c/2d/2e/2f) | `pairingAuthGraph()` | `:feature:pairing-auth` | #76-79 |
-| Uso diário (bottom nav) | `Routes.HOME` → `BottomNavHost` | `:app` (monta `:feature:*` das abas) | #67, #83-88 |
+| Uso diário (bottom nav) | `Routes.HOME` → `BottomNavHost` | `:app` (monta `:feature:*` das abas e dos 5 grafos de Ferramentas avançadas) | #67, #83-88, #147 |
 
 ## Decisões da costura (AC da #113)
 
@@ -75,14 +75,19 @@ sucesso, `pairingAuthGraph` dispara `onAuthenticated`, e o `NetHalNavHost` naveg
   **descontinuadas** (decisão #66 / `docs/product/decisions/0001-telas-orfas-redesenho.md`). Seu
   conteúdo migra para os cards ao vivo da tela **Status** (`:feature:status`, #83). Os arquivos
   foram removidos nesta issue (sem caller restante).
-- **Sessão autenticada:** hoje a tela Status é uma casca (placeholder, #83 ainda não implementado),
-  então **não há consumidor** da sessão ao vivo. Para não deixar uma sessão autenticada pendurada
-  sem dono (credencial em memória) até o GC, o `onAuthenticated` **encerra a sessão**
-  (`engine.closeSession()`) antes de entrar no bottom nav — alinhado ao não-negociável "sem
-  credencial armazenada".
-  - **Quando #83 for real:** NÃO fechar no `onAuthenticated`; encaminhar o `CapabilityEngine` para o
-    host de uso diário (Status) alimentar os cards ao vivo, transferindo a posse do `closeSession()`
-    para a tela Status. Ponto de revisão de segurança (ciclo de vida da credencial em memória).
+- **Sessão autenticada (issue #147):** `:feature:status` (#83) e `:feature:wifi-network` (#84) são
+  consumidores reais da sessão ao vivo desde a consolidação do `BottomNavHost` — o `onAuthenticated`
+  **não fecha mais a sessão** no momento do handoff. Em vez disso, guarda o `CapabilityEngine` e o
+  IP do equipamento pareado (`selectedTarget?.ip`, capturado antes de zerar `selectedTarget`) em
+  estado no escopo do `NetHalNavHost` (`homeCapabilityEngine`/`homeDeviceIp`) e os repassa para
+  `BottomNavHost`, que por sua vez os repassa para `statusGraph`/`wifiNetworkGraph`/os grafos de
+  Ferramentas que precisam de sessão (`toolsPingGraph`, `rebootWanGraph`).
+  - **Dono do ciclo de vida:** a composable de `Routes.HOME` — um `DisposableEffect` chama
+    `engine?.closeSession()` no `onDispose`, alinhado ao não-negociável "sem credencial armazenada"
+    (sessão só em memória, só enquanto o consumidor estiver vivo). Hoje não existe ação de "trocar
+    equipamento"/logout que tire o usuário de Home de volta ao pareamento (gap conhecido, #85), então
+    na prática o `onDispose` só dispara quando o processo/composable é destruído — a garantia
+    estrutural já está correta para quando essa ação existir.
 
 ### 4. Trocar de equipamento a partir do uso diário
 
